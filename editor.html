@@ -5,18 +5,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ScrollStory Editor</title>
 <style>
-  :root { --bg: #0a0a0a; --accent: #10b981; --text: #eee; --ui-line: rgba(255,255,255,0.4); }
+  :root { 
+    --bg: #0a0a0a; 
+    --accent: #10b981; 
+    --text: #eee; 
+    --ui-line: rgba(255,255,255,0.4);
+  }
+  
   body { 
     font-family: system-ui, sans-serif; 
     background: var(--bg); 
     color: var(--text); 
     margin: 0; 
     padding: 0; 
-    overflow-x: hidden; 
-    height: 500vh;
+    overflow-x: hidden;
   }
   
-  /* 0. Brand & Direction Switch */
+  /* Brand & Direction Switch */
   #ss-brand { 
     position: fixed; 
     top: 15px; 
@@ -44,60 +49,39 @@
     font-weight: bold;
   }
 
-  /* 1. Left Navigator - NON-INTERACTIVE, just visual reference */
-  #ss-nav { 
-    position: fixed; 
-    left: 0; 
-    top: 60px; 
-    bottom: 60px; 
-    width: 40px; 
-    z-index: 10000; 
-    pointer-events: none; /* Make non-interactive */
+  /* Minimap - fixed on left, 4px from border */
+  #ss-minimap-container {
+    position: fixed;
+    left: 4px;
+    top: 60px;
+    bottom: 60px;
+    width: 80px;
+    z-index: 10000;
+    pointer-events: none;
     overflow: hidden;
   }
-  #ss-nav::before { 
-    content: ''; 
-    position: absolute; 
-    left: 20px; 
-    top: 0; 
-    bottom: 0; 
-    width: 2px; 
-    background: rgba(255,255,255,0.15); 
+  
+  /* Minimap content - proportional copy of article */
+  #ss-minimap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 80px;
+    transform-origin: top left;
   }
   
-  /* Dots - 16px diameter, one per actor */
-  .nav-dot { 
-    position: absolute; 
-    left: 12px; /* Center in 40px nav */
-    width: 16px; 
-    height: 16px; 
-    background: #666; 
-    border-radius: 50%; 
-    cursor: pointer; 
-    pointer-events: auto; /* Only dots are clickable */
-    transition: 0.2s; 
-    z-index: 1;
-  }
-  .nav-dot:hover { background: #aaa; }
-  .nav-dot.active { 
-    background: var(--accent); 
-    box-shadow: 0 0 10px var(--accent); 
-    z-index: 2; 
-    transform: scale(1.1); 
-  }
-  
-  /* Scrubber - NON-INTERACTIVE, 16px wide, always inside navigator */
-  #ss-scrubber { 
-    position: absolute; 
-    left: 12px; 
-    width: 16px; 
-    background: rgba(255,255,255,0.6); 
-    border-radius: 8px; 
-    pointer-events: none; /* Non-interactive */
-    z-index: 0;
+  /* Visor - cyan frame */
+  #ss-visor {
+    position: absolute;
+    left: 0;
+    width: 80px;
+    border: 2px solid var(--accent);
+    pointer-events: none;
+    z-index: 10001;
+    box-sizing: border-box;
   }
 
-  /* 2. Timeline */
+  /* Timeline */
   #ss-timeline { 
     position: fixed; 
     bottom: 40px; 
@@ -195,7 +179,7 @@
     user-select: none; 
   }
 
-  /* 3. 9-Dots Aligner */
+  /* 9-Dots Aligner */
   #ss-aligner { 
     position: fixed; 
     top: 15px; 
@@ -215,7 +199,7 @@
   }
   .align-dot:hover { background: var(--accent); }
 
-  /* 4. Controls */
+  /* Controls */
   #ss-controls { 
     position: fixed; 
     bottom: 20px; 
@@ -241,33 +225,12 @@
     font-weight: bold; 
   }
 
-  /* 5. Elements */
-  .story-container { position: relative; width: 100%; height: 100%; }
+  /* Elements */
+  .story-container { 
+    position: relative; 
+    width: 100%; 
+  }
   
-  [data-actor] {
-    position: absolute;
-    transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg));
-    opacity: var(--a, 1);
-    will-change: transform, opacity;
-    cursor: grab;
-    /* Minimum opacity so invisible elements are still visible */
-    min-opacity: 0.2;
-  }
-
-  [data-actor]:active { cursor: grabbing; }
-  [data-actor].selected { 
-    box-shadow: 0 0 0 4px var(--accent); 
-    z-index: 50; 
-    /* Ensure selected elements are visible */
-    opacity: var(--a, 1) !important;
-    min-opacity: 0.4 !important;
-  }
-
-  body[data-editing="true"] [data-actor] { 
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.25); 
-  }
-
-  /* Demo content styling */
   section {
     min-height: 100vh;
     padding: 40px 20px;
@@ -278,6 +241,7 @@
     align-items: center;
     justify-content: center;
     text-align: center;
+    page-break-inside: avoid;
   }
   
   h1, h2 { color: var(--accent); margin-bottom: 20px; }
@@ -303,7 +267,27 @@
     margin: 20px 0;
   }
   
-  /* Fix for minimum opacity */
+  [data-actor] {
+    position: absolute;
+    transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg));
+    opacity: var(--a, 1);
+    will-change: transform, opacity;
+    cursor: grab;
+    min-opacity: 0.2;
+  }
+
+  [data-actor]:active { cursor: grabbing; }
+  [data-actor].selected { 
+    box-shadow: 0 0 0 4px var(--accent); 
+    z-index: 50;
+    opacity: var(--a, 1) !important;
+    min-opacity: 0.4 !important;
+  }
+
+  body[data-editing="true"] [data-actor] { 
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.25); 
+  }
+  
   [data-actor] {
     opacity: max(var(--a, 1), 0.2) !important;
   }
@@ -317,7 +301,11 @@
 <div id="ss-brand"><span>Scroll</span><span>Story</span></div>
 <div id="ss-dir">V</div>
 
-<div id="ss-nav"><div id="ss-scrubber"></div></div>
+<!-- Minimap Container -->
+<div id="ss-minimap-container">
+  <div id="ss-minimap"></div>
+  <div id="ss-visor"></div>
+</div>
 
 <div id="ss-timeline">
   <div class="tl-node active" data-frame="in"><div class="tl-dot"></div><div class="tl-label">In</div></div>
@@ -379,12 +367,13 @@
 
 <script src="scrollstory.min.js"></script>
 <script>
-// ScrollStory Editor - Fixed implementation
+// ScrollStory Editor - Plan B: Minimap implementation
 (function() {
     'use strict';
 
     // State
     const nodes = Array.from(document.querySelectorAll('[data-actor]'));
+    const storyContainer = document.querySelector('.story-container');
     let selectedNode = null;
     let activeFrame = 'on';
     let isPlaying = false;
@@ -402,7 +391,7 @@
         elements: {}
     };
     
-    // Easing functions with names and SVG paths
+    // Easing functions
     const easings = [
         { n: 'Linear', f: t => t, p: 'M3 20 L21 4' },
         { n: 'EaseOut', f: t => 1 - Math.pow(1 - t, 3), p: 'M3 20 Q 10 4 21 4' },
@@ -415,17 +404,28 @@
         { n: 'Spring', f: t => 1+(Math.pow(2,-10*t)*Math.sin((t-0.075)*(2*Math.PI)/0.3)), p: 'M3 20 Q 10 4 15 -2 T 21 4' }
     ];
 
+    // Minimap elements
+    const minimapContainer = document.getElementById('ss-minimap-container');
+    const minimap = document.getElementById('ss-minimap');
+    const visor = document.getElementById('ss-visor');
+
     // Initialize
     function init() {
         initElements();
         buildUI();
         bindTactileControls();
-        updateNavigator();
+        createMinimap();
+        updateVisor();
         
-        // Setup scroll listener for scrubber
+        // Setup scroll listener
         window.addEventListener('scroll', () => {
-            updateNavigatorScrubber();
+            updateVisor();
         }, {passive: true});
+        
+        window.addEventListener('resize', () => {
+            createMinimap();
+            updateVisor();
+        });
         
         // Initialize runtime
         window.ScrollStory.init({
@@ -436,7 +436,6 @@
             ease: 'easeOutQuad'
         });
         
-        // Initially disable runtime animations
         window.ScrollStoryEnabled = false;
     }
 
@@ -450,9 +449,60 @@
                 out: { tx: 100, ty: 0, s: 1, a: 0, r: 0 },
                 layout: { y: triggerY }
             };
-            // Apply initial "on" state
             applyDelta(n, state.elements[n.id].on);
         });
+    }
+
+    function createMinimap() {
+        // Clear existing minimap
+        minimap.innerHTML = '';
+        
+        // Get dimensions
+        const containerHeight = minimapContainer.clientHeight;
+        const docHeight = document.body.scrollHeight;
+        const scale = containerHeight / docHeight;
+        
+        // Clone the story container and scale it down
+        const clone = storyContainer.cloneNode(true);
+        clone.id = 'ss-minimap-clone';
+        clone.style.transform = `scale(${scale})`;
+        clone.style.width = `${100 / scale}%`;
+        clone.style.height = 'auto';
+        clone.style.position = 'absolute';
+        clone.style.top = '0';
+        clone.style.left = '0';
+        
+        // Remove all data-actor attributes and interactions from clone
+        const cloneActors = clone.querySelectorAll('[data-actor]');
+        cloneActors.forEach(actor => {
+            actor.removeAttribute('data-actor');
+            actor.style.cursor = 'default';
+            actor.style.pointerEvents = 'none';
+        });
+        
+        // Style the clone to be visible
+        clone.style.opacity = '0.5';
+        clone.style.filter = 'grayscale(100%)';
+        
+        minimap.appendChild(clone);
+    }
+
+    function updateVisor() {
+        const containerHeight = minimapContainer.clientHeight;
+        const docHeight = document.body.scrollHeight;
+        const winHeight = window.innerHeight;
+        const scrollY = window.scrollY;
+        
+        // Calculate visor position (clamped)
+        const maxScroll = docHeight - winHeight;
+        const scrollPct = Math.max(0, Math.min(1, scrollY / maxScroll));
+        const topPct = scrollPct * 100;
+        
+        // Visor height represents viewport height relative to document
+        const visorHeightPct = (winHeight / docHeight) * 100;
+        
+        visor.style.top = `${topPct}%`;
+        visor.style.height = `${Math.max(5, visorHeightPct)}%`;
     }
 
     function setMode(mode) {
@@ -609,83 +659,24 @@
         n.style.transform = `translate(${l.bx || '-50%'}, ${l.by || '-50%'}) translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg))`;
     }
 
-    function updateNavigator() {
-        const nav = document.getElementById('ss-nav');
-        nav.querySelectorAll('.nav-dot').forEach(d => d.remove());
-        
-        const docH = document.body.scrollHeight;
-        const positions = {}; // Track Y positions to detect overlaps
-        
-        nodes.forEach(n => {
-            const y = state.elements[n.id].layout.y;
-            const yPct = (y / docH) * 100;
-            
-            // Check if this position is already taken
-            const existing = Object.keys(positions).find(key => {
-                const existingY = parseFloat(key);
-                return Math.abs(existingY - yPct) < 2; // Within 2% of each other
-            });
-            
-            let left = 12; // Default left position
-            if (existing) {
-                // Fan to the right if overlapping
-                const count = positions[existing] || 0;
-                left = 12 + (count + 1) * 18; // 18px spacing between fanned dots
-                positions[existing] = count + 1;
-            } else {
-                positions[yPct] = 0;
+    function updateRuntimeConfig() {
+        const inEaseName = easings[state.global.inEase].n;
+        window.ScrollStory.loadConfig({
+            config: {
+                inOffset: -100,
+                outOffset: 100,
+                inAlpha: 0,
+                outAlpha: 0,
+                animDuration: state.global.inDur,
+                ease: inEaseName
             }
-            
-            let dot = document.createElement('div');
-            dot.className = 'nav-dot';
-            dot.dataset.id = n.id;
-            dot.style.top = `${yPct}%`;
-            dot.style.left = `${left}px`;
-            dot.onclick = (e) => { 
-                e.stopPropagation(); 
-                selectNode(n);
-                // Scroll to center the element's on position
-                const elementTop = state.elements[n.id].layout.y;
-                const viewportHeight = window.innerHeight;
-                const scrollTo = elementTop - viewportHeight / 2 + n.offsetHeight / 2;
-                window.scrollTo({ top: scrollTo, behavior: 'smooth' });
-            };
-            nav.appendChild(dot);
         });
-    }
-
-    function updateNavigatorScrubber() {
-        const scrub = document.getElementById('ss-scrubber');
-        const nav = document.getElementById('ss-nav');
-        const navRect = nav.getBoundingClientRect();
-        const docH = document.body.scrollHeight;
-        const winH = window.innerHeight;
-        const scrollY = window.scrollY;
-        
-        // Calculate scrubber position (clamped to navigator bounds)
-        const maxScroll = docH - winH;
-        const scrollPct = Math.max(0, Math.min(1, scrollY / maxScroll));
-        const topPct = scrollPct * 100;
-        
-        // Scrubber height represents viewport height relative to document
-        const scrubHeightPct = (winH / docH) * 100;
-        
-        scrub.style.top = `${topPct}%`;
-        scrub.style.height = `${Math.max(5, scrubHeightPct)}%`; // Minimum 5% height
     }
 
     function selectNode(node) {
-        // Remove selection from previous
         if(selectedNode) selectedNode.classList.remove('selected');
         selectedNode = node;
         node.classList.add('selected');
-        
-        // Highlight the dot
-        document.querySelectorAll('.nav-dot').forEach(d => {
-            d.classList.toggle('active', d.dataset.id === node.id);
-        });
-        
-        // Set to "on" frame and highlight
         setMode('on');
     }
 
@@ -753,20 +744,6 @@
             if (isDraggingNode) {
                 try { isDraggingNode.releasePointerCapture(e.pointerId); } catch(err){}
                 isDraggingNode = null;
-            }
-        });
-    }
-
-    function updateRuntimeConfig() {
-        const inEaseName = easings[state.global.inEase].n;
-        window.ScrollStory.loadConfig({
-            config: {
-                inOffset: -100,
-                outOffset: 100,
-                inAlpha: 0,
-                outAlpha: 0,
-                animDuration: state.global.inDur,
-                ease: inEaseName
             }
         });
     }
