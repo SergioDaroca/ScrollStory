@@ -49,7 +49,7 @@
     font-weight: bold;
   }
 
-  /* Minimap Container - fixed on left, 4px from border */
+  /* Minimap Container */
   #ss-minimap-container {
     position: fixed;
     left: 4px;
@@ -59,11 +59,10 @@
     z-index: 10000;
     pointer-events: none;
     overflow: hidden;
-    background: rgba(0,0,0,0.3);
+    background: rgba(0,0,0,0.5);
     border-radius: 4px;
   }
   
-  /* Minimap - proportional copy of article */
   #ss-minimap {
     position: absolute;
     top: 0;
@@ -72,68 +71,8 @@
     height: 100%;
     overflow: hidden;
   }
-  
-  /* Minimap content - reset all positioning */
-  #ss-minimap .story-container {
-    position: relative !important;
-    width: 80px !important;
-    height: auto !important;
-    transform: none !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-  
-  #ss-minimap section {
-    position: relative !important;
-    min-height: auto !important;
-    padding: 10px 5px !important;
-    border: none !important;
-    display: block !important;
-    margin: 0 !important;
-    page-break-inside: avoid;
-    background: rgba(255,255,255,0.05);
-    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-  }
-  
-  #ss-minimap h1, #ss-minimap h2 {
-    font-size: 8px !important;
-    margin: 2px 0 !important;
-    color: #888 !important;
-    text-align: center !important;
-  }
-  
-  #ss-minimap p {
-    font-size: 6px !important;
-    line-height: 1.2 !important;
-    margin: 1px 0 !important;
-    opacity: 0.6 !important;
-    color: #888 !important;
-    max-width: none !important;
-  }
-  
-  #ss-minimap .actor-box {
-    width: 40px !important;
-    height: 30px !important;
-    font-size: 8px !important;
-    margin: 2px 0 !important;
-    background: linear-gradient(135deg, #445, #667) !important;
-  }
-  
-  #ss-minimap [data-actor] {
-    position: relative !important;
-    transform: none !important;
-    opacity: 1 !important;
-    cursor: default !important;
-    min-opacity: 1 !important;
-    box-shadow: none !important;
-    z-index: auto !important;
-    top: auto !important;
-    left: auto !important;
-    display: block !important;
-    margin: 2px auto !important;
-  }
 
-  /* Visor - cyan frame */
+  /* Visor - cyan frame, 4px border = 80px inner width */
   #ss-visor {
     position: absolute;
     left: 0;
@@ -167,154 +106,46 @@
     transform: translateY(-50%); 
   }
   
-  .tl-node { 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    cursor: pointer; 
-    background: var(--bg); 
-    padding: 0 15px; 
-    user-select: none;
-  }
-  .tl-dot { 
-    width: 14px; 
-    height: 14px; 
-    border-radius: 50%; 
-    background: #eee; 
-    transition: 0.2s; 
-    border: 2px solid var(--bg); 
-  }
-  .tl-label { 
-    font-size: 12px; 
-    text-transform: uppercase; 
-    margin-top: 8px; 
-    font-weight: 700; 
-    color: rgba(255,255,255,0.6); 
-    letter-spacing: 1px; 
-  }
-  .tl-node.active .tl-dot { 
-    background: var(--accent); 
-    box-shadow: 0 0 12px var(--accent); 
-    border-color: #fff; 
-  }
+  .tl-node { display: flex; flex-direction: column; align-items: center; cursor: pointer; background: var(--bg); padding: 0 15px; user-select: none; }
+  .tl-dot { width: 14px; height: 14px; border-radius: 50%; background: #eee; transition: 0.2s; border: 2px solid var(--bg); }
+  .tl-label { font-size: 12px; text-transform: uppercase; margin-top: 8px; font-weight: 700; color: rgba(255,255,255,0.6); letter-spacing: 1px; }
+  .tl-node.active .tl-dot { background: var(--accent); box-shadow: 0 0 12px var(--accent); border-color: #fff; }
   .tl-node.active .tl-label { color: #fff; }
+  .tl-segment { position: relative; flex: 1; display: flex; justify-content: center; height: 60px; }
   
-  .tl-segment { 
-    position: relative; 
-    flex: 1; 
-    display: flex; 
-    justify-content: center; 
-    height: 60px; 
-  }
-  .ease-container { 
-    position: absolute; 
-    top: -25px; 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    cursor: pointer;
-  }
-  .ease-icon { 
-    width: 22px; 
-    height: 22px; 
-    cursor: pointer; 
-    fill: none; 
-    stroke: #eee; 
-    stroke-width: 2; 
-    background: var(--bg); 
-    padding: 2px;
-  }
-  .ease-name { 
-    font-size: 10px; 
-    color: #888; 
-    margin-top: 2px; 
-    text-align: center;
-  }
-  .tl-num { 
-    position: absolute; 
-    bottom: 0; 
-    font-size: 11px; 
-    font-weight: bold; 
-    cursor: ns-resize; 
-    background: var(--bg); 
-    padding: 2px 8px; 
-    color: #eee; 
-    user-select: none; 
-  }
+  .ease-container { position: absolute; top: -25px; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+  .ease-icon { width: 22px; height: 22px; cursor: pointer; fill: none; stroke: #eee; stroke-width: 2; background: var(--bg); padding: 2px; }
+  .ease-name { font-size: 10px; color: #888; margin-top: 2px; text-align: center; }
+  .tl-num { position: absolute; bottom: 0; font-size: 11px; font-weight: bold; cursor: ns-resize; background: var(--bg); padding: 2px 8px; color: #eee; user-select: none; }
 
   /* 9-Dots Aligner */
-  #ss-aligner { 
-    position: fixed; 
-    top: 15px; 
-    right: 15px; 
-    display: grid; 
-    grid-template-columns: repeat(3, 1fr); 
-    gap: 4px; 
-    background: transparent; 
-    z-index: 10000; 
-  }
-  .align-dot { 
-    width: 8px; 
-    height: 8px; 
-    background: var(--ui-line); 
-    border-radius: 1px; 
-    cursor: pointer; 
-  }
+  #ss-aligner { position: fixed; top: 15px; right: 15px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: transparent; z-index: 10000; }
+  .align-dot { width: 8px; height: 8px; background: var(--ui-line); border-radius: 1px; cursor: pointer; }
   .align-dot:hover { background: var(--accent); }
 
   /* Controls */
-  #ss-controls { 
-    position: fixed; 
-    bottom: 20px; 
-    right: 15px; 
-    display: flex; 
-    gap: 8px; 
-    z-index: 10000; 
-  }
-  #ss-controls button { 
-    background: transparent; 
-    border: 1px solid var(--ui-line); 
-    color: #eee; 
-    padding: 6px 12px; 
-    border-radius: 4px; 
-    cursor: pointer; 
-    font-size: 11px; 
-    text-transform: uppercase; 
-  }
-  #ss-controls button.active { 
-    background: var(--accent); 
-    border-color: var(--accent); 
-    color: #000; 
-    font-weight: bold; 
-  }
+  #ss-controls { position: fixed; bottom: 20px; right: 15px; display: flex; gap: 8px; z-index: 10000; }
+  #ss-controls button { background: transparent; border: 1px solid var(--ui-line); color: #eee; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; text-transform: uppercase; }
+  #ss-controls button.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: bold; }
 
-  /* Main Content - ensure no overlaps */
-  .story-container { 
-    position: relative; 
-    width: 100%; 
-  }
+  /* Main Content - NO absolute positioning for layout, only for actors */
+  .story-container { position: relative; width: 100%; }
   
   section {
     min-height: 100vh;
     padding: 60px 20px;
     border-bottom: 1px solid #333;
-    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     text-align: center;
     page-break-inside: avoid;
+    position: relative;
   }
   
   h1, h2 { color: var(--accent); margin-bottom: 20px; }
-  p { 
-    max-width: 600px; 
-    line-height: 1.6; 
-    margin: 20px 0; 
-    opacity: 0.9; 
-    color: #ccc;
-  }
+  p { max-width: 600px; line-height: 1.6; margin: 20px 0; opacity: 0.9; color: #ccc; }
   
   .actor-box {
     width: 200px;
@@ -330,13 +161,15 @@
     margin: 20px 0;
   }
   
+  /* Actors - positioned relative to their natural flow position */
   [data-actor] {
-    position: absolute;
+    position: relative;
     transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg));
     opacity: var(--a, 1);
     will-change: transform, opacity;
     cursor: grab;
     min-opacity: 0.2;
+    display: inline-block;
   }
 
   [data-actor]:active { cursor: grabbing; }
@@ -347,16 +180,10 @@
     min-opacity: 0.4 !important;
   }
 
-  body[data-editing="true"] [data-actor] { 
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.25); 
-  }
+  body[data-editing="true"] [data-actor] { box-shadow: 0 0 0 1px rgba(255,255,255,0.25); }
   
-  [data-actor] {
-    opacity: max(var(--a, 1), 0.2) !important;
-  }
-  [data-actor].selected {
-    opacity: max(var(--a, 1), 0.4) !important;
-  }
+  [data-actor] { opacity: max(var(--a, 1), 0.2) !important; }
+  [data-actor].selected { opacity: max(var(--a, 1), 0.4) !important; }
 </style>
 </head>
 <body data-editing="true">
@@ -364,7 +191,6 @@
 <div id="ss-brand"><span>Scroll</span><span>Story</span></div>
 <div id="ss-dir">V</div>
 
-<!-- Minimap Container -->
 <div id="ss-minimap-container">
   <div id="ss-minimap"></div>
   <div id="ss-visor"></div>
@@ -430,7 +256,7 @@
 
 <script src="scrollstory.min.js"></script>
 <script>
-// ScrollStory Editor - Plan B: Fixed Minimap
+// ScrollStory Editor - Fixed content layout and minimap
 (function() {
     'use strict';
 
@@ -478,14 +304,17 @@
     function initElements() {
         nodes.forEach(n => {
             if (!n.id) n.id = 'ss-' + Math.random().toString(36).substr(2, 6);
-            const triggerY = n.offsetTop;
+            // Store natural position (where it appears in flow)
+            const rect = n.getBoundingClientRect();
+            const naturalTop = rect.top + window.scrollY;
             state.elements[n.id] = {
                 in:  { tx: -100, ty: 0, s: 1, a: 0, r: 0 },
                 on:  { tx: 0, ty: 0, s: 1, a: 1, r: 0 },
                 out: { tx: 100, ty: 0, s: 1, a: 0, r: 0 },
-                layout: { y: triggerY }
+                layout: { y: naturalTop }
             };
-            applyDelta(n, state.elements[n.id].on);
+            // Start with natural position (no transform)
+            applyDelta(n, { tx: 0, ty: 0, s: 1, a: 1, r: 0 });
         });
     }
 
@@ -496,11 +325,10 @@
         const docHeight = document.body.scrollHeight;
         const scale = containerHeight / docHeight;
         
-        // Create a simple representation of the content
-        const contentHeight = docHeight;
+        // Create section bars
         const sections = document.querySelectorAll('section');
-        
         let currentY = 0;
+        
         sections.forEach((section, index) => {
             const sectionHeight = section.offsetHeight;
             const scaledHeight = sectionHeight * scale;
@@ -511,22 +339,23 @@
             sectionDiv.style.left = '0';
             sectionDiv.style.width = '80px';
             sectionDiv.style.height = `${scaledHeight}px`;
-            sectionDiv.style.background = index % 2 === 0 ? 'rgba(100,100,100,0.2)' : 'rgba(150,150,150,0.1)';
+            sectionDiv.style.background = index % 2 === 0 ? 'rgba(100,100,100,0.3)' : 'rgba(150,150,150,0.2)';
             sectionDiv.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
             
-            // Add tiny indicators for actors
+            // Add actor indicators
             const actors = section.querySelectorAll('[data-actor]');
             actors.forEach(actor => {
-                const actorDiv = document.createElement('div');
                 const actorTop = actor.offsetTop - section.offsetTop;
                 const actorHeight = actor.offsetHeight;
+                const actorDiv = document.createElement('div');
                 actorDiv.style.position = 'absolute';
                 actorDiv.style.top = `${actorTop * scale}px`;
                 actorDiv.style.left = '50%';
                 actorDiv.style.width = '4px';
-                actorDiv.style.height = `${actorHeight * scale}px`;
-                actorDiv.style.background = '#0ff';
+                actorDiv.style.height = `${Math.max(2, actorHeight * scale)}px`;
+                actorDiv.style.background = var(--accent);
                 actorDiv.style.transform = 'translateX(-50%)';
+                actorDiv.style.borderRadius = '2px';
                 sectionDiv.appendChild(actorDiv);
             });
             
@@ -541,18 +370,14 @@
         const winHeight = window.innerHeight;
         const scrollY = window.scrollY;
         
-        // Calculate visor position - exclude its own height from limits
         const maxScroll = docHeight - winHeight;
         const scrollPct = Math.max(0, Math.min(1, scrollY / maxScroll));
         
         // Visor height = screen height relative to document
         const visorHeightPct = (winHeight / docHeight) * 100;
         
-        // Position visor - top edge at scrollPct, but ensure bottom doesn't go out of bounds
-        const topPct = scrollPct * 100;
-        
-        // Clamp so visor stays within container
-        const clampedTop = Math.max(0, Math.min(100 - visorHeightPct, topPct));
+        // Clamp so visor stays within container (exclude its own height)
+        const clampedTop = Math.max(0, Math.min(100 - visorHeightPct, scrollPct * 100));
         
         visor.style.top = `${clampedTop}%`;
         visor.style.height = `${Math.max(5, visorHeightPct)}%`;
