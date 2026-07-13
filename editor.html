@@ -44,7 +44,7 @@
     font-weight: bold;
   }
 
-  /* 1. Left Navigator */
+  /* 1. Left Navigator - NON-INTERACTIVE, just visual reference */
   #ss-nav { 
     position: fixed; 
     left: 0; 
@@ -52,11 +52,9 @@
     bottom: 60px; 
     width: 40px; 
     z-index: 10000; 
-    cursor: pointer; 
-    overflow-y: auto; 
-    scrollbar-width: none;
+    pointer-events: none; /* Make non-interactive */
+    overflow: hidden;
   }
-  #ss-nav::-webkit-scrollbar { display: none; }
   #ss-nav::before { 
     content: ''; 
     position: absolute; 
@@ -66,15 +64,17 @@
     width: 2px; 
     background: rgba(255,255,255,0.15); 
   }
+  
+  /* Dots - 16px diameter, one per actor */
   .nav-dot { 
     position: absolute; 
-    left: 15px; 
-    width: 10px; 
-    height: 10px; 
+    left: 12px; /* Center in 40px nav */
+    width: 16px; 
+    height: 16px; 
     background: #666; 
     border-radius: 50%; 
     cursor: pointer; 
-    pointer-events: auto; 
+    pointer-events: auto; /* Only dots are clickable */
     transition: 0.2s; 
     z-index: 1;
   }
@@ -83,19 +83,18 @@
     background: var(--accent); 
     box-shadow: 0 0 10px var(--accent); 
     z-index: 2; 
-    transform: scale(1.2); 
+    transform: scale(1.1); 
   }
   
-  /* Scrubber - can be dragged */
+  /* Scrubber - NON-INTERACTIVE, 16px wide, always inside navigator */
   #ss-scrubber { 
     position: absolute; 
-    left: 17px; 
-    width: 6px; 
+    left: 12px; 
+    width: 16px; 
     background: rgba(255,255,255,0.6); 
-    border-radius: 3px; 
-    pointer-events: auto;
-    cursor: row-resize;
-    z-index: 3;
+    border-radius: 8px; 
+    pointer-events: none; /* Non-interactive */
+    z-index: 0;
   }
 
   /* 2. Timeline */
@@ -181,7 +180,7 @@
   .ease-name { 
     font-size: 10px; 
     color: #888; 
-    margin-top: 2px;
+    margin-top: 2px; 
     text-align: center;
   }
   .tl-num { 
@@ -380,7 +379,7 @@
 
 <script src="scrollstory.min.js"></script>
 <script>
-// ScrollStory Editor - Full implementation
+// ScrollStory Editor - Fixed implementation
 (function() {
     'use strict';
 
@@ -389,9 +388,8 @@
     let selectedNode = null;
     let activeFrame = 'on';
     let isPlaying = false;
-    let isDraggingScrubber = false;
     let isDraggingNode = null;
-    let dragStartX, dragStartY, dragStartScrollY;
+    let dragStartX, dragStartY, dragInitTx, dragInitTy;
     
     // Editor state
     const state = {
@@ -424,12 +422,12 @@
         bindTactileControls();
         updateNavigator();
         
-        // Setup scroll listener
+        // Setup scroll listener for scrubber
         window.addEventListener('scroll', () => {
             updateNavigatorScrubber();
         }, {passive: true});
         
-        // Initialize runtime - but don't animate until user interacts
+        // Initialize runtime
         window.ScrollStory.init({
             inOffset: -100,
             outOffset: 100,
@@ -438,8 +436,7 @@
             ease: 'easeOutQuad'
         });
         
-        // Initially disable runtime animations (elements stay static)
-        // They will be enabled when user starts editing
+        // Initially disable runtime animations
         window.ScrollStoryEnabled = false;
     }
 
@@ -467,11 +464,9 @@
         playBtn.innerText = mode === 'play' ? 'Stop' : 'Play';
         
         if (mode === 'play') {
-            // Enable runtime animations
             window.ScrollStoryEnabled = true;
             window.ScrollStory.update();
         } else {
-            // Disable runtime, show static editor state
             window.ScrollStoryEnabled = false;
             nodes.forEach(node => {
                 if (mode === 'on') {
@@ -603,43 +598,7 @@
             };
             const jsonStr = JSON.stringify(exportState, null, 2);
             navigator.clipboard.writeText(jsonStr);
-            alert("JSON copied to clipboard!\n\n" + jsonStr.substring(0, 200) + "...");
-        };
-        
-        // Scrubber drag
-        const scrubber = document.getElementById('ss-scrubber');
-        let isDraggingScrubber = false;
-        let scrubStartY, scrubStartScroll;
-        
-        scrubber.onpointerdown = (e) => {
-            isDraggingScrubber = true;
-            scrubStartY = e.clientY;
-            scrubStartScroll = window.scrollY;
-            scrubber.setPointerCapture(e.pointerId);
-            e.preventDefault();
-            e.stopPropagation();
-        };
-        
-        window.addEventListener('pointermove', (e) => {
-            if (!isDraggingScrubber) return;
-            const docH = document.body.scrollHeight - window.innerHeight;
-            const deltaY = e.clientY - scrubStartY;
-            const scrollDelta = (deltaY / window.innerHeight) * docH;
-            window.scrollTo(0, scrubStartScroll + scrollDelta);
-            e.preventDefault();
-        });
-        
-        window.addEventListener('pointerup', () => {
-            isDraggingScrubber = false;
-        });
-        
-        // Navigator click to scroll
-        const nav = document.getElementById('ss-nav');
-        nav.onpointerdown = (e) => {
-            if (e.target.classList.contains('nav-dot')) return;
-            const rect = nav.getBoundingClientRect();
-            const pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-            window.scrollTo(0, pct * (document.body.scrollHeight - window.innerHeight));
+            alert("JSON copied to clipboard!");
         };
     }
 
@@ -653,17 +612,43 @@
     function updateNavigator() {
         const nav = document.getElementById('ss-nav');
         nav.querySelectorAll('.nav-dot').forEach(d => d.remove());
+        
         const docH = document.body.scrollHeight;
+        const positions = {}; // Track Y positions to detect overlaps
+        
         nodes.forEach(n => {
+            const y = state.elements[n.id].layout.y;
+            const yPct = (y / docH) * 100;
+            
+            // Check if this position is already taken
+            const existing = Object.keys(positions).find(key => {
+                const existingY = parseFloat(key);
+                return Math.abs(existingY - yPct) < 2; // Within 2% of each other
+            });
+            
+            let left = 12; // Default left position
+            if (existing) {
+                // Fan to the right if overlapping
+                const count = positions[existing] || 0;
+                left = 12 + (count + 1) * 18; // 18px spacing between fanned dots
+                positions[existing] = count + 1;
+            } else {
+                positions[yPct] = 0;
+            }
+            
             let dot = document.createElement('div');
             dot.className = 'nav-dot';
             dot.dataset.id = n.id;
-            const y = state.elements[n.id].layout.y;
-            dot.style.top = `${(y / docH) * 100}%`;
+            dot.style.top = `${yPct}%`;
+            dot.style.left = `${left}px`;
             dot.onclick = (e) => { 
                 e.stopPropagation(); 
                 selectNode(n);
-                n.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Scroll to center the element's on position
+                const elementTop = state.elements[n.id].layout.y;
+                const viewportHeight = window.innerHeight;
+                const scrollTo = elementTop - viewportHeight / 2 + n.offsetHeight / 2;
+                window.scrollTo({ top: scrollTo, behavior: 'smooth' });
             };
             nav.appendChild(dot);
         });
@@ -671,18 +656,37 @@
 
     function updateNavigatorScrubber() {
         const scrub = document.getElementById('ss-scrubber');
-        const docH = document.body.scrollHeight, winH = window.innerHeight;
+        const nav = document.getElementById('ss-nav');
+        const navRect = nav.getBoundingClientRect();
+        const docH = document.body.scrollHeight;
+        const winH = window.innerHeight;
         const scrollY = window.scrollY;
-        const pct = (scrollY / (docH - winH)) * 100;
-        scrub.style.top = `${pct}%`;
-        scrub.style.height = `${(winH / docH) * 100}%`;
+        
+        // Calculate scrubber position (clamped to navigator bounds)
+        const maxScroll = docH - winH;
+        const scrollPct = Math.max(0, Math.min(1, scrollY / maxScroll));
+        const topPct = scrollPct * 100;
+        
+        // Scrubber height represents viewport height relative to document
+        const scrubHeightPct = (winH / docH) * 100;
+        
+        scrub.style.top = `${topPct}%`;
+        scrub.style.height = `${Math.max(5, scrubHeightPct)}%`; // Minimum 5% height
     }
 
     function selectNode(node) {
+        // Remove selection from previous
         if(selectedNode) selectedNode.classList.remove('selected');
         selectedNode = node;
         node.classList.add('selected');
-        document.querySelectorAll('.nav-dot').forEach(d => d.classList.toggle('active', d.dataset.id === node.id));
+        
+        // Highlight the dot
+        document.querySelectorAll('.nav-dot').forEach(d => {
+            d.classList.toggle('active', d.dataset.id === node.id);
+        });
+        
+        // Set to "on" frame and highlight
+        setMode('on');
     }
 
     function bindTactileControls() {
@@ -755,9 +759,6 @@
 
     function updateRuntimeConfig() {
         const inEaseName = easings[state.global.inEase].n;
-        const outEaseName = easings[state.global.outEase].n;
-        
-        // Update runtime with current config
         window.ScrollStory.loadConfig({
             config: {
                 inOffset: -100,
