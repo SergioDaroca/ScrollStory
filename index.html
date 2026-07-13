@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScrollStory Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #000; 
+            color: #fff;
+            overflow-x: hidden;
+        }
+        article {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        section {
+            min-height: 100vh;
+            padding: 40px 0;
+            border-bottom: 1px solid #333;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        h1, h2 { color: #0ff; }
+        p { 
+            max-width: 600px; 
+            line-height: 1.6; 
+            margin: 20px 0; 
+            opacity: 0.9; 
+        }
+        .actor {
+            transition: transform 0.5s ease, opacity 0.5s ease;
+        }
+        .actor-box {
+            width: 200px;
+            height: 150px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <article id="story">
+        <section id="s1">
+            <h1>ScrollStory</h1>
+            <p class="actor-box actor" data-actor="hero">Tiny Runtime</p>
+            <p class="actor" data-actor="title">A tiny Editor and Runtime for creating Scroll Stories.</p>
+        </section>
+        
+        <section id="s2">
+            <h2>The Vision</h2>
+            <p class="actor" data-actor="vision">The simplest scroll-based animation engine.</p>
+            <p class="actor-box actor" data-actor="box1">Box 1</p>
+        </section>
+        
+        <section id="s3">
+            <h2>How It Works</h2>
+            <p class="actor" data-actor="how">Elements have three states: in, on, and out.</p>
+            <p class="actor-box actor" data-actor="box2">Box 2</p>
+        </section>
+        
+        <section id="s4">
+            <h2>The Magic</h2>
+            <p class="actor" data-actor="magic">Scroll to see elements animate between states.</p>
+            <p class="actor-box actor" data-actor="box3">Box 3</p>
+        </section>
+        
+        <section id="s5">
+            <h2>Get Started</h2>
+            <p class="actor" data-actor="start">The editor lets you visually configure these animations.</p>
+            <p class="actor-box actor" data-actor="box4">Box 4</p>
+        </section>
+    </article>
+
+    <script src="scrollstory.min.js"></script>
+    <script>
+        // Optional: Load custom config
+        window.ScrollStory.loadConfig({
+            config: {
+                inOffset: -100,
+                outOffset: 100,
+                inAlpha: 0,
+                outAlpha: 0,
+                animDuration: 1,
+                ease: 'easeOutQuad'
+            }
+        });
+    </script>
+</body>
+</html>

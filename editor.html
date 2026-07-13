@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScrollStory Editor</title>
+<style>
+  :root { --bg: #0a0a0a; --accent: #10b981; --text: #eee; --ui-line: rgba(255,255,255,0.4); }
+  body { 
+    font-family: system-ui, sans-serif; 
+    background: var(--bg); 
+    color: var(--text); 
+    margin: 0; 
+    padding: 0; 
+    overflow-x: hidden; 
+    height: 500vh;
+  }
+  
+  /* 0. Brand & Direction Switch */
+  #ss-brand { 
+    position: fixed; 
+    top: 15px; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    font-weight: 800; 
+    letter-spacing: 1px; 
+    z-index: 10000; 
+    font-size: 14px; 
+    pointer-events: none;
+  }
+  #ss-brand span:nth-child(2) { color: var(--accent); }
+  
+  #ss-dir { 
+    position: fixed; 
+    top: 15px; 
+    left: 15px; 
+    background: transparent; 
+    border: 1px solid var(--ui-line); 
+    padding: 4px 10px; 
+    border-radius: 4px; 
+    z-index: 10000; 
+    cursor: pointer; 
+    font-size: 12px; 
+    font-weight: bold;
+  }
+
+  /* 1. Left Navigator */
+  #ss-nav { 
+    position: fixed; 
+    left: 0; 
+    top: 60px; 
+    bottom: 60px; 
+    width: 30px; 
+    z-index: 10000; 
+    cursor: pointer; 
+    overflow-y: auto; 
+    scrollbar-width: none;
+  }
+  #ss-nav::-webkit-scrollbar { display: none; }
+  #ss-nav::before { 
+    content: ''; 
+    position: absolute; 
+    left: 15px; 
+    top: 0; 
+    bottom: 0; 
+    width: 2px; 
+    background: rgba(255,255,255,0.15); 
+  }
+  .nav-dot { 
+    position: absolute; 
+    left: 11px; 
+    width: 10px; 
+    height: 10px; 
+    background: #eee; 
+    border-radius: 50%; 
+    cursor: pointer; 
+    pointer-events: auto; 
+    transition: 0.2s; 
+  }
+  .nav-dot.active { 
+    background: var(--accent); 
+    box-shadow: 0 0 10px var(--accent); 
+    z-index: 2; 
+    transform: scale(1.2); 
+  }
+  
+  /* Scrubber - visual only, does not block clicks */
+  #ss-scrubber { 
+    position: absolute; 
+    left: 13px; 
+    width: 6px; 
+    background: rgba(255,255,255,0.4); 
+    border-radius: 3px; 
+    pointer-events: none; 
+  }
+
+  /* 2. Timeline */
+  #ss-timeline { 
+    position: fixed; 
+    bottom: 40px; 
+    left: 25vw; 
+    width: 50vw; 
+    display: flex; 
+    align-items: center; 
+    justify-content: space-between; 
+    z-index: 10000; 
+  }
+  #ss-timeline::before { 
+    content: ''; 
+    position: absolute; 
+    top: 50%; 
+    left: 0; 
+    right: 0; 
+    height: 2px; 
+    background: var(--ui-line); 
+    z-index: -1; 
+    transform: translateY(-50%); 
+  }
+  
+  .tl-node { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    cursor: pointer; 
+    background: var(--bg); 
+    padding: 0 15px; 
+  }
+  .tl-dot { 
+    width: 14px; 
+    height: 14px; 
+    border-radius: 50%; 
+    background: #eee; 
+    transition: 0.2s; 
+    border: 2px solid var(--bg); 
+  }
+  .tl-label { 
+    font-size: 12px; 
+    text-transform: uppercase; 
+    margin-top: 8px; 
+    font-weight: 700; 
+    color: rgba(255,255,255,0.6); 
+    letter-spacing: 1px; 
+  }
+  .tl-node.active .tl-dot { 
+    background: var(--accent); 
+    box-shadow: 0 0 12px var(--accent); 
+    border-color: #fff; 
+  }
+  .tl-node.active .tl-label { color: #fff; }
+  
+  .tl-segment { 
+    position: relative; 
+    flex: 1; 
+    display: flex; 
+    justify-content: center; 
+    height: 60px; 
+  }
+  .ease-icon { 
+    position: absolute; 
+    top: -5px; 
+    width: 22px; 
+    height: 22px; 
+    cursor: pointer; 
+    fill: none; 
+    stroke: #eee; 
+    stroke-width: 2; 
+    background: var(--bg); 
+    padding: 0 8px; 
+  }
+  .tl-num { 
+    position: absolute; 
+    bottom: 0; 
+    font-size: 11px; 
+    font-weight: bold; 
+    cursor: ns-resize; 
+    background: var(--bg); 
+    padding: 2px 8px; 
+    color: #eee; 
+    user-select: none; 
+  }
+
+  /* 3. 9-Dots Aligner */
+  #ss-aligner { 
+    position: fixed; 
+    top: 15px; 
+    right: 15px; 
+    display: grid; 
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 4px; 
+    background: transparent; 
+    z-index: 10000; 
+  }
+  .align-dot { 
+    width: 8px; 
+    height: 8px; 
+    background: var(--ui-line); 
+    border-radius: 1px; 
+    cursor: pointer; 
+  }
+  .align-dot:hover { background: var(--accent); }
+
+  /* 4. Controls */
+  #ss-controls { 
+    position: fixed; 
+    bottom: 20px; 
+    right: 15px; 
+    display: flex; 
+    gap: 8px; 
+    z-index: 10000; 
+  }
+  #ss-controls button { 
+    background: transparent; 
+    border: 1px solid var(--ui-line); 
+    color: #eee; 
+    padding: 6px 12px; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 11px; 
+    text-transform: uppercase; 
+  }
+  #ss-controls button.active { 
+    background: var(--accent); 
+    border-color: var(--accent); 
+    color: #000; 
+    font-weight: bold; 
+  }
+
+  /* 5. Elements */
+  .story-container { position: relative; width: 100%; height: 100%; }
+  
+  [data-actor] {
+    position: absolute;
+    transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg));
+    opacity: var(--a, 1);
+    will-change: transform, opacity;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    cursor: grab;
+  }
+
+  [data-actor]:active { cursor: grabbing; }
+  [data-actor].selected { 
+    box-shadow: 0 0 0 4px var(--accent); 
+    z-index: 50; 
+  }
+
+  body[data-editing="true"] [data-actor] { 
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.25); 
+  }
+
+  /* Demo content styling */
+  section {
+    min-height: 100vh;
+    padding: 40px 20px;
+    border-bottom: 1px solid #333;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  h1, h2 { color: var(--accent); margin-bottom: 20px; }
+  p { 
+    max-width: 600px; 
+    line-height: 1.6; 
+    margin: 20px 0; 
+    opacity: 0.9; 
+    color: #ccc;
+  }
+  
+  .actor-box {
+    width: 200px;
+    height: 150px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 24px;
+    margin: 20px 0;
+  }
+</style>
+</head>
+<body data-editing="true">
+
+<div id="ss-brand"><span>Scroll</span><span>Story</span></div>
+<div id="ss-dir">V</div>
+
+<div id="ss-nav"><div id="ss-scrubber"></div></div>
+
+<div id="ss-timeline">
+  <div class="tl-node active" data-frame="in"><div class="tl-dot"></div><div class="tl-label">In</div></div>
+  <div class="tl-segment"><svg class="ease-icon" id="ease-in" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg><div class="tl-num" id="dur-in">1.0v</div></div>
+  <div class="tl-node" data-frame="on"><div class="tl-dot"></div><div class="tl-label">On</div></div>
+  <div class="tl-segment"><svg class="ease-icon" id="ease-out" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg><div class="tl-num" id="dur-out">1.0v</div></div>
+  <div class="tl-node" data-frame="out"><div class="tl-dot"></div><div class="tl-label">Out</div></div>
+</div>
+
+<div id="ss-aligner"></div>
+<div id="ss-controls">
+  <button id="ss-play">Play</button>
+  <button id="ss-export">Export</button>
+</div>
+
+<div class="story-container">
+  <section id="s1">
+    <h1>ScrollStory</h1>
+    <p class="actor-box" data-actor="hero">Tiny Editor & Runtime</p>
+    <p data-actor="title">A tiny Editor and Runtime for creating Scroll Stories.</p>
+  </section>
+  
+  <section id="s2">
+    <h2>The Vision</h2>
+    <p data-actor="vision">The simplest scroll-based animation engine. Elements have three states: in, on, and out.</p>
+    <p class="actor-box" data-actor="box1">Box 1</p>
+  </section>
+  
+  <section id="s3">
+    <h2>How It Works</h2>
+    <p data-actor="how">Each actor element has a natural "on stage" position. The "in" state is before this position, and "out" is after.</p>
+    <p class="actor-box" data-actor="box2">Box 2</p>
+  </section>
+  
+  <section id="s4">
+    <h2>The Magic</h2>
+    <p data-actor="magic">Scroll to see elements animate. The runtime calculates when each element should start its in/out animations.</p>
+    <p class="actor-box" data-actor="box3">Box 3</p>
+  </section>
+  
+  <section id="s5">
+    <h2>Get Started</h2>
+    <p data-actor="start">This is just the beginning. The editor lets you visually configure these animations.</p>
+    <p class="actor-box" data-actor="box4">Box 4</p>
+  </section>
+</div>
+
+<script src="scrollstory.min.js"></script>
+<script>
+// Editor Layer - Controls the UI and feeds config to runtime
+(function() {
+    'use strict';
+
+    const nodes = Array.from(document.querySelectorAll('[data-actor]'));
+    let selectedNode = null;
+    let activeFrame = 'on';
+    let isPlaying = false;
+    let scrollT = 0;
+    let targetScrollT = 0;
+    
+    // State for editor
+    const state = {
+        global: { inDur: 1.0, outDur: 1.0, inEase: 0, outEase: 0 },
+        elements: {}
+    };
+    
+    // Easing functions matching SVG paths
+    const easings = [
+        { n: 'Linear', f: t => t, p: 'M3 20 L21 4' },
+        { n: 'EaseOut', f: t => 1 - Math.pow(1 - t, 3), p: 'M3 20 Q 10 4 21 4' },
+        { n: 'EaseIn', f: t => t * t * t, p: 'M3 20 Q 14 20 21 4' },
+        { n: 'Spring', f: t => 1+(Math.pow(2,-10*t)*Math.sin((t-0.075)*(2*Math.PI)/0.3)), p: 'M3 20 Q 10 4 15 -2 T 21 4' }
+    ];
+
+    // Initialize
+    function init() {
+        initElements();
+        buildUI();
+        bindTactileControls();
+        updateNavigator();
+        
+        // Setup scroll listener for scrubber
+        window.addEventListener('scroll', () => {
+            targetScrollT = window.scrollY;
+            updateNavigatorScrubber();
+        }, {passive: true});
+        
+        // Initialize runtime with default config
+        window.ScrollStory.loadConfig({
+            config: {
+                inOffset: -100,
+                outOffset: 100,
+                inAlpha: 0,
+                outAlpha: 0,
+                animDuration: 1,
+                ease: 'easeOutQuad'
+            }
+        });
+    }
+
+    function initElements() {
+        nodes.forEach(n => {
+            if (!n.id) n.id = 'ss-' + Math.random().toString(36).substr(2, 6);
+            const triggerY = n.offsetTop;
+            state.elements[n.id] = {
+                in:  { tx: -100, ty: 0, s: 1, a: 0, r: 0 },
+                out: { tx: 100, ty: 0, s: 1, a: 0, r: 0 },
+                layout: { y: triggerY, baseX: '50%', baseY: '50%', bx: '-50%', by: '-50%' }
+            };
+            applyLayout(n);
+        });
+    }
+
+    function setMode(mode) {
+        activeFrame = mode;
+        document.body.setAttribute('data-editing', mode !== 'play');
+        document.querySelectorAll('.tl-node').forEach(n => n.classList.toggle('active', n.dataset.frame === mode));
+        const playBtn = document.getElementById('ss-play');
+        playBtn.classList.toggle('active', mode === 'play');
+        playBtn.innerText = mode === 'play' ? 'Stop' : 'Play';
+        
+        if (mode !== 'play') {
+            nodes.forEach(node => {
+                if (mode === 'on') applyDelta(node, getZeroDelta());
+                else applyDelta(node, state.elements[node.id][mode]);
+            });
+        }
+    }
+
+    function getZeroDelta() { return { tx: 0, ty: 0, s: 1, a: 1, r: 0 }; }
+    function lerp(s, e, t) { return s * (1 - t) + e * t; }
+    
+    function applyDelta(n, d) {
+        n.style.setProperty('--tx', d.tx + 'px');
+        n.style.setProperty('--ty', d.ty + 'px');
+        n.style.setProperty('--s', d.s);
+        n.style.setProperty('--a', d.a);
+        n.style.setProperty('--r', d.r + 'deg');
+    }
+    
+    function applyLayout(n) {
+        const l = state.elements[n.id].layout;
+        n.style.top = l.y + 'px';
+        n.style.left = '50%';
+        n.style.transform = 'translate(-50%, -50%)';
+    }
+
+    function buildUI() {
+        // Timeline nodes
+        document.querySelectorAll('.tl-node').forEach(node => {
+            node.onclick = () => setMode(node.dataset.frame);
+        });
+        
+        // Play button
+        document.getElementById('ss-play').onclick = () => setMode(activeFrame === 'play' ? 'on' : 'play');
+        
+        // Aligner Dots
+        const aligner = document.getElementById('ss-aligner');
+        const poses = [
+            ['0%', '0%', '0%', '0%'],
+            ['50%', '0%', '-50%', '0%'],
+            ['100%', '0%', '-100%', '0%'],
+            ['0%', '50%', '0%', '-50%'],
+            ['50%', '50%', '-50%', '-50%'],
+            ['100%', '50%', '-100%', '-50%'],
+            ['0%', '100%', '0%', '-100%'],
+            ['50%', '100%', '-50%', '-100%'],
+            ['100%', '100%', '-100%', '-100%']
+        ];
+        poses.forEach(p => {
+            let d = document.createElement('div');
+            d.className = 'align-dot';
+            d.onclick = () => {
+                if(!selectedNode || activeFrame !== 'on') return;
+                const l = state.elements[selectedNode.id].layout;
+                [l.baseX, l.baseY, l.bx, l.by] = p;
+                applyLayout(selectedNode);
+            };
+            aligner.appendChild(d);
+        });
+
+        // Duration scrubbers
+        const bindNumScrub = (id, key) => {
+            const el = document.getElementById(id);
+            let isDragging = false, startY, startVal;
+            el.onpointerdown = e => { 
+                isDragging = true; 
+                startY = e.clientY; 
+                startVal = state.global[key]; 
+                el.setPointerCapture(e.pointerId); 
+            };
+            el.onpointermove = e => { 
+                if(!isDragging) return; 
+                let val = Math.max(0.1, (startVal + (startY - e.clientY) * 0.02)); 
+                if (isNaN(val)) val = 1.0; 
+                state.global[key] = parseFloat(val.toFixed(1)); 
+                el.innerText = state.global[key] + 'v'; 
+                updateRuntimeConfig();
+            };
+            el.onpointerup = () => isDragging = false;
+        };
+        bindNumScrub('dur-in', 'inDur');
+        bindNumScrub('dur-out', 'outDur');
+
+        // Ease cycle
+        const bindEaseCycle = (id, key) => {
+            const el = document.getElementById(id);
+            el.onwheel = e => { 
+                e.preventDefault(); 
+                let idx = state.global[key] + (e.deltaY > 0 ? 1 : -1); 
+                if (idx < 0) idx = easings.length - 1; 
+                if (idx >= easings.length) idx = 0; 
+                state.global[key] = idx; 
+                el.innerHTML = `<path d="${easings[idx].p}"/>`; 
+                updateRuntimeConfig();
+            };
+        };
+        bindEaseCycle('ease-in', 'inEase');
+        bindEaseCycle('ease-out', 'outEase');
+
+        // Export
+        document.getElementById('ss-export').onclick = () => {
+            const exportState = {
+                config: {
+                    inDur: state.global.inDur,
+                    outDur: state.global.outDur,
+                    inEase: easings[state.global.inEase].n,
+                    outEase: easings[state.global.outEase].n
+                },
+                elements: Object.keys(state.elements).map(id => ({
+                    id: id,
+                    in: state.elements[id].in,
+                    out: state.elements[id].out,
+                    layout: state.elements[id].layout
+                }))
+            };
+            navigator.clipboard.writeText(JSON.stringify(exportState, null, 2));
+            alert("Copied to clipboard!");
+        };
+        
+        // Scrubber
+        const nav = document.getElementById('ss-nav');
+        nav.onpointerdown = (e) => {
+            if (e.target.classList.contains('nav-dot')) return;
+            const rect = nav.getBoundingClientRect();
+            const pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+            window.scrollTo(0, pct * (document.body.scrollHeight - window.innerHeight));
+        };
+    }
+
+    function updateNavigator() {
+        const nav = document.getElementById('ss-nav');
+        nav.querySelectorAll('.nav-dot').forEach(d => d.remove());
+        const docH = document.body.scrollHeight;
+        nodes.forEach(n => {
+            let dot = document.createElement('div');
+            dot.className = 'nav-dot';
+            dot.dataset.id = n.id;
+            dot.style.top = `${(state.elements[n.id].layout.y / docH) * 100}%`;
+            dot.onclick = (e) => { 
+                e.stopPropagation(); 
+                selectNode(n);
+                n.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            };
+            nav.appendChild(dot);
+        });
+    }
+
+    function updateNavigatorScrubber() {
+        const scrub = document.getElementById('ss-scrubber');
+        const docH = document.body.scrollHeight, winH = window.innerHeight;
+        const pct = (window.scrollY / (docH - winH)) * 100;
+        scrub.style.top = `${pct}%`;
+        scrub.style.height = `${(winH / docH) * 100}%`;
+    }
+
+    function selectNode(node) {
+        if(selectedNode) selectedNode.classList.remove('selected');
+        selectedNode = node;
+        node.classList.add('selected');
+        document.querySelectorAll('.nav-dot').forEach(d => d.classList.toggle('active', d.dataset.id === node.id));
+    }
+
+    function bindTactileControls() {
+        let activeDragNode = null;
+        let startX, startY, initTx, initTy;
+
+        nodes.forEach(node => {
+            node.addEventListener('pointerdown', (e) => {
+                if (activeFrame === 'play') return;
+                e.stopPropagation();
+                selectNode(node);
+                activeDragNode = node;
+                startX = e.clientX;
+                startY = e.clientY;
+                if (activeFrame === 'on') {
+                    const l = state.elements[node.id].layout;
+                    initTx = parseFloat(l.baseX) || 50;
+                    initTy = parseFloat(l.baseY) || 50;
+                } else {
+                    const d = state.elements[node.id][activeFrame];
+                    initTx = d.tx;
+                    initTy = d.ty;
+                }
+                try { node.setPointerCapture(e.pointerId); } catch(err){}
+            });
+
+            node.addEventListener('wheel', (e) => {
+                if (activeFrame === 'play' || activeFrame === 'on') return;
+                e.preventDefault();
+                selectNode(node);
+                const d = state.elements[node.id][activeFrame];
+                if (e.altKey) d.a = Math.max(0, Math.min(1, d.a - e.deltaY * 0.002));
+                else if (e.shiftKey) d.r += e.deltaY * 0.1;
+                else d.s = Math.max(0.1, d.s - e.deltaY * 0.002);
+                applyDelta(node, d);
+            }, { passive: false });
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!activeDragNode) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            if (activeFrame === 'on') {
+                const l = state.elements[activeDragNode.id].layout;
+                l.baseX = initTx + dx;
+                l.baseY = initTy + dy;
+                applyLayout(activeDragNode);
+            } else {
+                const d = state.elements[activeDragNode.id][activeFrame];
+                d.tx = initTx + dx;
+                d.ty = initTy + dy;
+                applyDelta(activeDragNode, d);
+            }
+        });
+
+        window.addEventListener('pointerup', (e) => {
+            if (activeDragNode) {
+                try { activeDragNode.releasePointerCapture(e.pointerId); } catch(err){}
+                activeDragNode = null;
+            }
+        });
+    }
+
+    function updateRuntimeConfig() {
+        // Map editor state to runtime config
+        const inEaseName = easings[state.global.inEase].n.toLowerCase();
+        const outEaseName = easings[state.global.outEase].n.toLowerCase();
+        
+        window.ScrollStory.loadConfig({
+            config: {
+                inOffset: -100,
+                outOffset: 100,
+                inAlpha: 0,
+                outAlpha: 0,
+                animDuration: state.global.inDur,
+                ease: inEaseName
+            }
+        });
+    }
+
+    // Initialize
+    init();
+})();
+</script>
+</body>
+</html>
