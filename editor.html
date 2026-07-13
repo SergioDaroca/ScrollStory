@@ -50,7 +50,7 @@
     left: 0; 
     top: 60px; 
     bottom: 60px; 
-    width: 30px; 
+    width: 40px; 
     z-index: 10000; 
     cursor: pointer; 
     overflow-y: auto; 
@@ -60,7 +60,7 @@
   #ss-nav::before { 
     content: ''; 
     position: absolute; 
-    left: 15px; 
+    left: 20px; 
     top: 0; 
     bottom: 0; 
     width: 2px; 
@@ -68,15 +68,17 @@
   }
   .nav-dot { 
     position: absolute; 
-    left: 11px; 
+    left: 15px; 
     width: 10px; 
     height: 10px; 
-    background: #eee; 
+    background: #666; 
     border-radius: 50%; 
     cursor: pointer; 
     pointer-events: auto; 
     transition: 0.2s; 
+    z-index: 1;
   }
+  .nav-dot:hover { background: #aaa; }
   .nav-dot.active { 
     background: var(--accent); 
     box-shadow: 0 0 10px var(--accent); 
@@ -84,14 +86,16 @@
     transform: scale(1.2); 
   }
   
-  /* Scrubber - visual only, does not block clicks */
+  /* Scrubber - can be dragged */
   #ss-scrubber { 
     position: absolute; 
-    left: 13px; 
+    left: 17px; 
     width: 6px; 
-    background: rgba(255,255,255,0.4); 
+    background: rgba(255,255,255,0.6); 
     border-radius: 3px; 
-    pointer-events: none; 
+    pointer-events: auto;
+    cursor: row-resize;
+    z-index: 3;
   }
 
   /* 2. Timeline */
@@ -124,6 +128,7 @@
     cursor: pointer; 
     background: var(--bg); 
     padding: 0 15px; 
+    user-select: none;
   }
   .tl-dot { 
     width: 14px; 
@@ -155,9 +160,15 @@
     justify-content: center; 
     height: 60px; 
   }
-  .ease-icon { 
+  .ease-container { 
     position: absolute; 
-    top: -5px; 
+    top: -25px; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    cursor: pointer;
+  }
+  .ease-icon { 
     width: 22px; 
     height: 22px; 
     cursor: pointer; 
@@ -165,7 +176,13 @@
     stroke: #eee; 
     stroke-width: 2; 
     background: var(--bg); 
-    padding: 0 8px; 
+    padding: 2px;
+  }
+  .ease-name { 
+    font-size: 10px; 
+    color: #888; 
+    margin-top: 2px;
+    text-align: center;
   }
   .tl-num { 
     position: absolute; 
@@ -233,14 +250,18 @@
     transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg));
     opacity: var(--a, 1);
     will-change: transform, opacity;
-    transition: transform 0.3s ease, opacity 0.3s ease;
     cursor: grab;
+    /* Minimum opacity so invisible elements are still visible */
+    min-opacity: 0.2;
   }
 
   [data-actor]:active { cursor: grabbing; }
   [data-actor].selected { 
     box-shadow: 0 0 0 4px var(--accent); 
     z-index: 50; 
+    /* Ensure selected elements are visible */
+    opacity: var(--a, 1) !important;
+    min-opacity: 0.4 !important;
   }
 
   body[data-editing="true"] [data-actor] { 
@@ -282,6 +303,14 @@
     font-size: 24px;
     margin: 20px 0;
   }
+  
+  /* Fix for minimum opacity */
+  [data-actor] {
+    opacity: max(var(--a, 1), 0.2) !important;
+  }
+  [data-actor].selected {
+    opacity: max(var(--a, 1), 0.4) !important;
+  }
 </style>
 </head>
 <body data-editing="true">
@@ -293,9 +322,21 @@
 
 <div id="ss-timeline">
   <div class="tl-node active" data-frame="in"><div class="tl-dot"></div><div class="tl-label">In</div></div>
-  <div class="tl-segment"><svg class="ease-icon" id="ease-in" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg><div class="tl-num" id="dur-in">1.0v</div></div>
+  <div class="tl-segment">
+    <div class="ease-container" id="ease-in-container">
+      <svg class="ease-icon" id="ease-in" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg>
+      <div class="ease-name" id="ease-in-name">Linear</div>
+    </div>
+    <div class="tl-num" id="dur-in">1.0v</div>
+  </div>
   <div class="tl-node" data-frame="on"><div class="tl-dot"></div><div class="tl-label">On</div></div>
-  <div class="tl-segment"><svg class="ease-icon" id="ease-out" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg><div class="tl-num" id="dur-out">1.0v</div></div>
+  <div class="tl-segment">
+    <div class="ease-container" id="ease-out-container">
+      <svg class="ease-icon" id="ease-out" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg>
+      <div class="ease-name" id="ease-out-name">Linear</div>
+    </div>
+    <div class="tl-num" id="dur-out">1.0v</div>
+  </div>
   <div class="tl-node" data-frame="out"><div class="tl-dot"></div><div class="tl-label">Out</div></div>
 </div>
 
@@ -314,53 +355,65 @@
   
   <section id="s2">
     <h2>The Vision</h2>
-    <p data-actor="vision">The simplest scroll-based animation engine. Elements have three states: in, on, and out.</p>
+    <p data-actor="vision">The simplest scroll-based animation engine.</p>
     <p class="actor-box" data-actor="box1">Box 1</p>
   </section>
   
   <section id="s3">
     <h2>How It Works</h2>
-    <p data-actor="how">Each actor element has a natural "on stage" position. The "in" state is before this position, and "out" is after.</p>
+    <p data-actor="how">Elements have three states: in, on, and out.</p>
     <p class="actor-box" data-actor="box2">Box 2</p>
   </section>
   
   <section id="s4">
     <h2>The Magic</h2>
-    <p data-actor="magic">Scroll to see elements animate. The runtime calculates when each element should start its in/out animations.</p>
+    <p data-actor="magic">Scroll to see elements animate between states.</p>
     <p class="actor-box" data-actor="box3">Box 3</p>
   </section>
   
   <section id="s5">
     <h2>Get Started</h2>
-    <p data-actor="start">This is just the beginning. The editor lets you visually configure these animations.</p>
+    <p data-actor="start">The editor lets you visually configure these animations.</p>
     <p class="actor-box" data-actor="box4">Box 4</p>
   </section>
 </div>
 
 <script src="scrollstory.min.js"></script>
 <script>
-// Editor Layer - Controls the UI and feeds config to runtime
+// ScrollStory Editor - Full implementation
 (function() {
     'use strict';
 
+    // State
     const nodes = Array.from(document.querySelectorAll('[data-actor]'));
     let selectedNode = null;
     let activeFrame = 'on';
     let isPlaying = false;
-    let scrollT = 0;
-    let targetScrollT = 0;
+    let isDraggingScrubber = false;
+    let isDraggingNode = null;
+    let dragStartX, dragStartY, dragStartScrollY;
     
-    // State for editor
+    // Editor state
     const state = {
-        global: { inDur: 1.0, outDur: 1.0, inEase: 0, outEase: 0 },
+        global: { 
+            inDur: 1.0, 
+            outDur: 1.0, 
+            inEase: 0, 
+            outEase: 0 
+        },
         elements: {}
     };
     
-    // Easing functions matching SVG paths
+    // Easing functions with names and SVG paths
     const easings = [
         { n: 'Linear', f: t => t, p: 'M3 20 L21 4' },
         { n: 'EaseOut', f: t => 1 - Math.pow(1 - t, 3), p: 'M3 20 Q 10 4 21 4' },
         { n: 'EaseIn', f: t => t * t * t, p: 'M3 20 Q 14 20 21 4' },
+        { n: 'EaseOutQuad', f: t => t*(2-t), p: 'M3 20 Q 12 10 21 4' },
+        { n: 'EaseInQuad', f: t => t*t, p: 'M3 20 Q 12 20 21 4' },
+        { n: 'EaseInOut', f: t => t<.5?2*t*t:-1+(4-2*t)*t, p: 'M3 20 Q 12 10 15 10 T 21 4' },
+        { n: 'EaseOutElastic', f: t => Math.sin(-13*(t+1)*Math.PI/2)*Math.pow(2,-10*t)+1, p: 'M3 20 Q 10 4 15 -2 T 21 4' },
+        { n: 'Bounce', f: t => { if(t<(1/2.75)){return 7.5625*t*t;}else if(t<(2/2.75)){t-=1.5/2.75;return 7.5625*t*t+0.75;}else if(t<(2.5/2.75)){t-=2.25/2.75;return 7.5625*t*t+0.9375;}else{t-=2.625/2.75;return 7.5625*t*t+0.984375;}}, p: 'M3 20 L10 4 L15 20 L21 4' },
         { n: 'Spring', f: t => 1+(Math.pow(2,-10*t)*Math.sin((t-0.075)*(2*Math.PI)/0.3)), p: 'M3 20 Q 10 4 15 -2 T 21 4' }
     ];
 
@@ -371,23 +424,23 @@
         bindTactileControls();
         updateNavigator();
         
-        // Setup scroll listener for scrubber
+        // Setup scroll listener
         window.addEventListener('scroll', () => {
-            targetScrollT = window.scrollY;
             updateNavigatorScrubber();
         }, {passive: true});
         
-        // Initialize runtime with default config
-        window.ScrollStory.loadConfig({
-            config: {
-                inOffset: -100,
-                outOffset: 100,
-                inAlpha: 0,
-                outAlpha: 0,
-                animDuration: 1,
-                ease: 'easeOutQuad'
-            }
+        // Initialize runtime - but don't animate until user interacts
+        window.ScrollStory.init({
+            inOffset: -100,
+            outOffset: 100,
+            inAlpha: 0,
+            outAlpha: 0,
+            ease: 'easeOutQuad'
         });
+        
+        // Initially disable runtime animations (elements stay static)
+        // They will be enabled when user starts editing
+        window.ScrollStoryEnabled = false;
     }
 
     function initElements() {
@@ -396,10 +449,12 @@
             const triggerY = n.offsetTop;
             state.elements[n.id] = {
                 in:  { tx: -100, ty: 0, s: 1, a: 0, r: 0 },
+                on:  { tx: 0, ty: 0, s: 1, a: 1, r: 0 },
                 out: { tx: 100, ty: 0, s: 1, a: 0, r: 0 },
-                layout: { y: triggerY, baseX: '50%', baseY: '50%', bx: '-50%', by: '-50%' }
+                layout: { y: triggerY }
             };
-            applyLayout(n);
+            // Apply initial "on" state
+            applyDelta(n, state.elements[n.id].on);
         });
     }
 
@@ -411,10 +466,19 @@
         playBtn.classList.toggle('active', mode === 'play');
         playBtn.innerText = mode === 'play' ? 'Stop' : 'Play';
         
-        if (mode !== 'play') {
+        if (mode === 'play') {
+            // Enable runtime animations
+            window.ScrollStoryEnabled = true;
+            window.ScrollStory.update();
+        } else {
+            // Disable runtime, show static editor state
+            window.ScrollStoryEnabled = false;
             nodes.forEach(node => {
-                if (mode === 'on') applyDelta(node, getZeroDelta());
-                else applyDelta(node, state.elements[node.id][mode]);
+                if (mode === 'on') {
+                    applyDelta(node, state.elements[node.id].on);
+                } else {
+                    applyDelta(node, state.elements[node.id][mode]);
+                }
             });
         }
     }
@@ -428,13 +492,6 @@
         n.style.setProperty('--s', d.s);
         n.style.setProperty('--a', d.a);
         n.style.setProperty('--r', d.r + 'deg');
-    }
-    
-    function applyLayout(n) {
-        const l = state.elements[n.id].layout;
-        n.style.top = l.y + 'px';
-        n.style.left = '50%';
-        n.style.transform = 'translate(-50%, -50%)';
     }
 
     function buildUI() {
@@ -459,9 +516,10 @@
             ['50%', '100%', '-50%', '-100%'],
             ['100%', '100%', '-100%', '-100%']
         ];
-        poses.forEach(p => {
+        poses.forEach((p, i) => {
             let d = document.createElement('div');
             d.className = 'align-dot';
+            d.dataset.pos = i;
             d.onclick = () => {
                 if(!selectedNode || activeFrame !== 'on') return;
                 const l = state.elements[selectedNode.id].layout;
@@ -480,23 +538,25 @@
                 startY = e.clientY; 
                 startVal = state.global[key]; 
                 el.setPointerCapture(e.pointerId); 
+                e.preventDefault();
             };
-            el.onpointermove = e => { 
+            window.addEventListener('pointermove', e => { 
                 if(!isDragging) return; 
                 let val = Math.max(0.1, (startVal + (startY - e.clientY) * 0.02)); 
                 if (isNaN(val)) val = 1.0; 
                 state.global[key] = parseFloat(val.toFixed(1)); 
                 el.innerText = state.global[key] + 'v'; 
                 updateRuntimeConfig();
-            };
+            });
             el.onpointerup = () => isDragging = false;
         };
         bindNumScrub('dur-in', 'inDur');
         bindNumScrub('dur-out', 'outDur');
 
         // Ease cycle
-        const bindEaseCycle = (id, key) => {
+        const bindEaseCycle = (id, key, nameId) => {
             const el = document.getElementById(id);
+            const nameEl = document.getElementById(nameId);
             el.onwheel = e => { 
                 e.preventDefault(); 
                 let idx = state.global[key] + (e.deltaY > 0 ? 1 : -1); 
@@ -504,16 +564,30 @@
                 if (idx >= easings.length) idx = 0; 
                 state.global[key] = idx; 
                 el.innerHTML = `<path d="${easings[idx].p}"/>`; 
+                nameEl.textContent = easings[idx].n;
+                updateRuntimeConfig();
+            };
+            el.onclick = e => { 
+                e.preventDefault();
+                let idx = state.global[key] + 1;
+                if (idx >= easings.length) idx = 0;
+                state.global[key] = idx;
+                el.innerHTML = `<path d="${easings[idx].p}"/>`;
+                nameEl.textContent = easings[idx].n;
                 updateRuntimeConfig();
             };
         };
-        bindEaseCycle('ease-in', 'inEase');
-        bindEaseCycle('ease-out', 'outEase');
+        bindEaseCycle('ease-in', 'inEase', 'ease-in-name');
+        bindEaseCycle('ease-out', 'outEase', 'ease-out-name');
 
         // Export
         document.getElementById('ss-export').onclick = () => {
             const exportState = {
                 config: {
+                    inOffset: -100,
+                    outOffset: 100,
+                    inAlpha: 0,
+                    outAlpha: 0,
                     inDur: state.global.inDur,
                     outDur: state.global.outDur,
                     inEase: easings[state.global.inEase].n,
@@ -522,15 +596,44 @@
                 elements: Object.keys(state.elements).map(id => ({
                     id: id,
                     in: state.elements[id].in,
+                    on: state.elements[id].on,
                     out: state.elements[id].out,
                     layout: state.elements[id].layout
                 }))
             };
-            navigator.clipboard.writeText(JSON.stringify(exportState, null, 2));
-            alert("Copied to clipboard!");
+            const jsonStr = JSON.stringify(exportState, null, 2);
+            navigator.clipboard.writeText(jsonStr);
+            alert("JSON copied to clipboard!\n\n" + jsonStr.substring(0, 200) + "...");
         };
         
-        // Scrubber
+        // Scrubber drag
+        const scrubber = document.getElementById('ss-scrubber');
+        let isDraggingScrubber = false;
+        let scrubStartY, scrubStartScroll;
+        
+        scrubber.onpointerdown = (e) => {
+            isDraggingScrubber = true;
+            scrubStartY = e.clientY;
+            scrubStartScroll = window.scrollY;
+            scrubber.setPointerCapture(e.pointerId);
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        
+        window.addEventListener('pointermove', (e) => {
+            if (!isDraggingScrubber) return;
+            const docH = document.body.scrollHeight - window.innerHeight;
+            const deltaY = e.clientY - scrubStartY;
+            const scrollDelta = (deltaY / window.innerHeight) * docH;
+            window.scrollTo(0, scrubStartScroll + scrollDelta);
+            e.preventDefault();
+        });
+        
+        window.addEventListener('pointerup', () => {
+            isDraggingScrubber = false;
+        });
+        
+        // Navigator click to scroll
         const nav = document.getElementById('ss-nav');
         nav.onpointerdown = (e) => {
             if (e.target.classList.contains('nav-dot')) return;
@@ -538,6 +641,13 @@
             const pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
             window.scrollTo(0, pct * (document.body.scrollHeight - window.innerHeight));
         };
+    }
+
+    function applyLayout(n) {
+        const l = state.elements[n.id].layout;
+        n.style.top = l.y + 'px';
+        n.style.left = (l.baseX || '50%');
+        n.style.transform = `translate(${l.bx || '-50%'}, ${l.by || '-50%'}) translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg))`;
     }
 
     function updateNavigator() {
@@ -548,7 +658,8 @@
             let dot = document.createElement('div');
             dot.className = 'nav-dot';
             dot.dataset.id = n.id;
-            dot.style.top = `${(state.elements[n.id].layout.y / docH) * 100}%`;
+            const y = state.elements[n.id].layout.y;
+            dot.style.top = `${(y / docH) * 100}%`;
             dot.onclick = (e) => { 
                 e.stopPropagation(); 
                 selectNode(n);
@@ -561,7 +672,8 @@
     function updateNavigatorScrubber() {
         const scrub = document.getElementById('ss-scrubber');
         const docH = document.body.scrollHeight, winH = window.innerHeight;
-        const pct = (window.scrollY / (docH - winH)) * 100;
+        const scrollY = window.scrollY;
+        const pct = (scrollY / (docH - winH)) * 100;
         scrub.style.top = `${pct}%`;
         scrub.style.height = `${(winH / docH) * 100}%`;
     }
@@ -574,27 +686,28 @@
     }
 
     function bindTactileControls() {
-        let activeDragNode = null;
-        let startX, startY, initTx, initTy;
+        let dragStartX, dragStartY, dragInitTx, dragInitTy;
 
         nodes.forEach(node => {
             node.addEventListener('pointerdown', (e) => {
                 if (activeFrame === 'play') return;
                 e.stopPropagation();
                 selectNode(node);
-                activeDragNode = node;
-                startX = e.clientX;
-                startY = e.clientY;
+                isDraggingNode = node;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                
                 if (activeFrame === 'on') {
                     const l = state.elements[node.id].layout;
-                    initTx = parseFloat(l.baseX) || 50;
-                    initTy = parseFloat(l.baseY) || 50;
+                    dragInitTx = parseFloat(l.baseX) || 0;
+                    dragInitTy = parseFloat(l.baseY) || 0;
                 } else {
                     const d = state.elements[node.id][activeFrame];
-                    initTx = d.tx;
-                    initTy = d.ty;
+                    dragInitTx = d.tx;
+                    dragInitTy = d.ty;
                 }
                 try { node.setPointerCapture(e.pointerId); } catch(err){}
+                e.preventDefault();
             });
 
             node.addEventListener('wheel', (e) => {
@@ -602,43 +715,49 @@
                 e.preventDefault();
                 selectNode(node);
                 const d = state.elements[node.id][activeFrame];
-                if (e.altKey) d.a = Math.max(0, Math.min(1, d.a - e.deltaY * 0.002));
-                else if (e.shiftKey) d.r += e.deltaY * 0.1;
-                else d.s = Math.max(0.1, d.s - e.deltaY * 0.002);
+                if (e.altKey) {
+                    d.a = Math.max(0, Math.min(1, d.a - e.deltaY * 0.002));
+                } else if (e.shiftKey) {
+                    d.r += e.deltaY * 0.1;
+                } else {
+                    d.s = Math.max(0.1, d.s - e.deltaY * 0.002);
+                }
                 applyDelta(node, d);
             }, { passive: false });
         });
 
         window.addEventListener('pointermove', (e) => {
-            if (!activeDragNode) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
+            if (!isDraggingNode) return;
+            const dx = e.clientX - dragStartX;
+            const dy = e.clientY - dragStartY;
+            
             if (activeFrame === 'on') {
-                const l = state.elements[activeDragNode.id].layout;
-                l.baseX = initTx + dx;
-                l.baseY = initTy + dy;
-                applyLayout(activeDragNode);
+                const l = state.elements[isDraggingNode.id].layout;
+                l.baseX = dragInitTx + dx;
+                l.baseY = dragInitTy + dy;
+                applyLayout(isDraggingNode);
             } else {
-                const d = state.elements[activeDragNode.id][activeFrame];
-                d.tx = initTx + dx;
-                d.ty = initTy + dy;
-                applyDelta(activeDragNode, d);
+                const d = state.elements[isDraggingNode.id][activeFrame];
+                d.tx = dragInitTx + dx;
+                d.ty = dragInitTy + dy;
+                applyDelta(isDraggingNode, d);
             }
+            e.preventDefault();
         });
 
         window.addEventListener('pointerup', (e) => {
-            if (activeDragNode) {
-                try { activeDragNode.releasePointerCapture(e.pointerId); } catch(err){}
-                activeDragNode = null;
+            if (isDraggingNode) {
+                try { isDraggingNode.releasePointerCapture(e.pointerId); } catch(err){}
+                isDraggingNode = null;
             }
         });
     }
 
     function updateRuntimeConfig() {
-        // Map editor state to runtime config
-        const inEaseName = easings[state.global.inEase].n.toLowerCase();
-        const outEaseName = easings[state.global.outEase].n.toLowerCase();
+        const inEaseName = easings[state.global.inEase].n;
+        const outEaseName = easings[state.global.outEase].n;
         
+        // Update runtime with current config
         window.ScrollStory.loadConfig({
             config: {
                 inOffset: -100,

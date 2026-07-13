@@ -88,16 +88,16 @@
 
     <script src="scrollstory.min.js"></script>
     <script>
-        // Optional: Load custom config
-        window.ScrollStory.loadConfig({
-            config: {
-                inOffset: -100,
-                outOffset: 100,
-                inAlpha: 0,
-                outAlpha: 0,
-                animDuration: 1,
-                ease: 'easeOutQuad'
-            }
+        // Enable runtime animations on load for demo
+        window.ScrollStoryEnabled = true;
+        
+        // Initialize with config
+        window.ScrollStory.init({
+            inOffset: -100,
+            outOffset: 100,
+            inAlpha: 0,
+            outAlpha: 0,
+            ease: 'easeOutQuad'
         });
     </script>
 </body>
