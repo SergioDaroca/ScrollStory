@@ -49,7 +49,7 @@
     font-weight: bold;
   }
 
-  /* Minimap - fixed on left, 4px from border */
+  /* Minimap Container - fixed on left, 4px from border */
   #ss-minimap-container {
     position: fixed;
     left: 4px;
@@ -59,17 +59,80 @@
     z-index: 10000;
     pointer-events: none;
     overflow: hidden;
+    background: rgba(0,0,0,0.3);
+    border-radius: 4px;
   }
   
-  /* Minimap content - proportional copy of article */
+  /* Minimap - proportional copy of article */
   #ss-minimap {
     position: absolute;
     top: 0;
     left: 0;
     width: 80px;
-    transform-origin: top left;
+    height: 100%;
+    overflow: hidden;
   }
   
+  /* Minimap content - reset all positioning */
+  #ss-minimap .story-container {
+    position: relative !important;
+    width: 80px !important;
+    height: auto !important;
+    transform: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  
+  #ss-minimap section {
+    position: relative !important;
+    min-height: auto !important;
+    padding: 10px 5px !important;
+    border: none !important;
+    display: block !important;
+    margin: 0 !important;
+    page-break-inside: avoid;
+    background: rgba(255,255,255,0.05);
+    border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+  }
+  
+  #ss-minimap h1, #ss-minimap h2 {
+    font-size: 8px !important;
+    margin: 2px 0 !important;
+    color: #888 !important;
+    text-align: center !important;
+  }
+  
+  #ss-minimap p {
+    font-size: 6px !important;
+    line-height: 1.2 !important;
+    margin: 1px 0 !important;
+    opacity: 0.6 !important;
+    color: #888 !important;
+    max-width: none !important;
+  }
+  
+  #ss-minimap .actor-box {
+    width: 40px !important;
+    height: 30px !important;
+    font-size: 8px !important;
+    margin: 2px 0 !important;
+    background: linear-gradient(135deg, #445, #667) !important;
+  }
+  
+  #ss-minimap [data-actor] {
+    position: relative !important;
+    transform: none !important;
+    opacity: 1 !important;
+    cursor: default !important;
+    min-opacity: 1 !important;
+    box-shadow: none !important;
+    z-index: auto !important;
+    top: auto !important;
+    left: auto !important;
+    display: block !important;
+    margin: 2px auto !important;
+  }
+
   /* Visor - cyan frame */
   #ss-visor {
     position: absolute;
@@ -225,7 +288,7 @@
     font-weight: bold; 
   }
 
-  /* Elements */
+  /* Main Content - ensure no overlaps */
   .story-container { 
     position: relative; 
     width: 100%; 
@@ -233,7 +296,7 @@
   
   section {
     min-height: 100vh;
-    padding: 40px 20px;
+    padding: 60px 20px;
     border-bottom: 1px solid #333;
     position: relative;
     display: flex;
@@ -367,31 +430,21 @@
 
 <script src="scrollstory.min.js"></script>
 <script>
-// ScrollStory Editor - Plan B: Minimap implementation
+// ScrollStory Editor - Plan B: Fixed Minimap
 (function() {
     'use strict';
 
-    // State
     const nodes = Array.from(document.querySelectorAll('[data-actor]'));
     const storyContainer = document.querySelector('.story-container');
     let selectedNode = null;
     let activeFrame = 'on';
-    let isPlaying = false;
     let isDraggingNode = null;
-    let dragStartX, dragStartY, dragInitTx, dragInitTy;
     
-    // Editor state
     const state = {
-        global: { 
-            inDur: 1.0, 
-            outDur: 1.0, 
-            inEase: 0, 
-            outEase: 0 
-        },
+        global: { inDur: 1.0, outDur: 1.0, inEase: 0, outEase: 0 },
         elements: {}
     };
     
-    // Easing functions
     const easings = [
         { n: 'Linear', f: t => t, p: 'M3 20 L21 4' },
         { n: 'EaseOut', f: t => 1 - Math.pow(1 - t, 3), p: 'M3 20 Q 10 4 21 4' },
@@ -404,12 +457,10 @@
         { n: 'Spring', f: t => 1+(Math.pow(2,-10*t)*Math.sin((t-0.075)*(2*Math.PI)/0.3)), p: 'M3 20 Q 10 4 15 -2 T 21 4' }
     ];
 
-    // Minimap elements
     const minimapContainer = document.getElementById('ss-minimap-container');
     const minimap = document.getElementById('ss-minimap');
     const visor = document.getElementById('ss-visor');
 
-    // Initialize
     function init() {
         initElements();
         buildUI();
@@ -417,25 +468,10 @@
         createMinimap();
         updateVisor();
         
-        // Setup scroll listener
-        window.addEventListener('scroll', () => {
-            updateVisor();
-        }, {passive: true});
+        window.addEventListener('scroll', () => updateVisor(), {passive: true});
+        window.addEventListener('resize', () => { createMinimap(); updateVisor(); });
         
-        window.addEventListener('resize', () => {
-            createMinimap();
-            updateVisor();
-        });
-        
-        // Initialize runtime
-        window.ScrollStory.init({
-            inOffset: -100,
-            outOffset: 100,
-            inAlpha: 0,
-            outAlpha: 0,
-            ease: 'easeOutQuad'
-        });
-        
+        window.ScrollStory.init({ inOffset: -100, outOffset: 100, inAlpha: 0, outAlpha: 0, ease: 'easeOutQuad' });
         window.ScrollStoryEnabled = false;
     }
 
@@ -454,37 +490,49 @@
     }
 
     function createMinimap() {
-        // Clear existing minimap
         minimap.innerHTML = '';
         
-        // Get dimensions
         const containerHeight = minimapContainer.clientHeight;
         const docHeight = document.body.scrollHeight;
         const scale = containerHeight / docHeight;
         
-        // Clone the story container and scale it down
-        const clone = storyContainer.cloneNode(true);
-        clone.id = 'ss-minimap-clone';
-        clone.style.transform = `scale(${scale})`;
-        clone.style.width = `${100 / scale}%`;
-        clone.style.height = 'auto';
-        clone.style.position = 'absolute';
-        clone.style.top = '0';
-        clone.style.left = '0';
+        // Create a simple representation of the content
+        const contentHeight = docHeight;
+        const sections = document.querySelectorAll('section');
         
-        // Remove all data-actor attributes and interactions from clone
-        const cloneActors = clone.querySelectorAll('[data-actor]');
-        cloneActors.forEach(actor => {
-            actor.removeAttribute('data-actor');
-            actor.style.cursor = 'default';
-            actor.style.pointerEvents = 'none';
+        let currentY = 0;
+        sections.forEach((section, index) => {
+            const sectionHeight = section.offsetHeight;
+            const scaledHeight = sectionHeight * scale;
+            
+            const sectionDiv = document.createElement('div');
+            sectionDiv.style.position = 'absolute';
+            sectionDiv.style.top = `${currentY}px`;
+            sectionDiv.style.left = '0';
+            sectionDiv.style.width = '80px';
+            sectionDiv.style.height = `${scaledHeight}px`;
+            sectionDiv.style.background = index % 2 === 0 ? 'rgba(100,100,100,0.2)' : 'rgba(150,150,150,0.1)';
+            sectionDiv.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            
+            // Add tiny indicators for actors
+            const actors = section.querySelectorAll('[data-actor]');
+            actors.forEach(actor => {
+                const actorDiv = document.createElement('div');
+                const actorTop = actor.offsetTop - section.offsetTop;
+                const actorHeight = actor.offsetHeight;
+                actorDiv.style.position = 'absolute';
+                actorDiv.style.top = `${actorTop * scale}px`;
+                actorDiv.style.left = '50%';
+                actorDiv.style.width = '4px';
+                actorDiv.style.height = `${actorHeight * scale}px`;
+                actorDiv.style.background = '#0ff';
+                actorDiv.style.transform = 'translateX(-50%)';
+                sectionDiv.appendChild(actorDiv);
+            });
+            
+            minimap.appendChild(sectionDiv);
+            currentY += scaledHeight;
         });
-        
-        // Style the clone to be visible
-        clone.style.opacity = '0.5';
-        clone.style.filter = 'grayscale(100%)';
-        
-        minimap.appendChild(clone);
     }
 
     function updateVisor() {
@@ -493,15 +541,20 @@
         const winHeight = window.innerHeight;
         const scrollY = window.scrollY;
         
-        // Calculate visor position (clamped)
+        // Calculate visor position - exclude its own height from limits
         const maxScroll = docHeight - winHeight;
         const scrollPct = Math.max(0, Math.min(1, scrollY / maxScroll));
-        const topPct = scrollPct * 100;
         
-        // Visor height represents viewport height relative to document
+        // Visor height = screen height relative to document
         const visorHeightPct = (winHeight / docHeight) * 100;
         
-        visor.style.top = `${topPct}%`;
+        // Position visor - top edge at scrollPct, but ensure bottom doesn't go out of bounds
+        const topPct = scrollPct * 100;
+        
+        // Clamp so visor stays within container
+        const clampedTop = Math.max(0, Math.min(100 - visorHeightPct, topPct));
+        
+        visor.style.top = `${clampedTop}%`;
         visor.style.height = `${Math.max(5, visorHeightPct)}%`;
     }
 
@@ -519,18 +572,12 @@
         } else {
             window.ScrollStoryEnabled = false;
             nodes.forEach(node => {
-                if (mode === 'on') {
-                    applyDelta(node, state.elements[node.id].on);
-                } else {
-                    applyDelta(node, state.elements[node.id][mode]);
-                }
+                if (mode === 'on') applyDelta(node, state.elements[node.id].on);
+                else applyDelta(node, state.elements[node.id][mode]);
             });
         }
     }
 
-    function getZeroDelta() { return { tx: 0, ty: 0, s: 1, a: 1, r: 0 }; }
-    function lerp(s, e, t) { return s * (1 - t) + e * t; }
-    
     function applyDelta(n, d) {
         n.style.setProperty('--tx', d.tx + 'px');
         n.style.setProperty('--ty', d.ty + 'px');
@@ -539,32 +586,28 @@
         n.style.setProperty('--r', d.r + 'deg');
     }
 
+    function applyLayout(n) {
+        const l = state.elements[n.id].layout;
+        n.style.top = l.y + 'px';
+        n.style.left = (l.baseX || '50%');
+        n.style.transform = `translate(${l.bx || '-50%'}, ${l.by || '-50%'}) translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg))`;
+    }
+
     function buildUI() {
-        // Timeline nodes
         document.querySelectorAll('.tl-node').forEach(node => {
             node.onclick = () => setMode(node.dataset.frame);
         });
-        
-        // Play button
         document.getElementById('ss-play').onclick = () => setMode(activeFrame === 'play' ? 'on' : 'play');
         
-        // Aligner Dots
         const aligner = document.getElementById('ss-aligner');
         const poses = [
-            ['0%', '0%', '0%', '0%'],
-            ['50%', '0%', '-50%', '0%'],
-            ['100%', '0%', '-100%', '0%'],
-            ['0%', '50%', '0%', '-50%'],
-            ['50%', '50%', '-50%', '-50%'],
-            ['100%', '50%', '-100%', '-50%'],
-            ['0%', '100%', '0%', '-100%'],
-            ['50%', '100%', '-50%', '-100%'],
-            ['100%', '100%', '-100%', '-100%']
+            ['0%', '0%', '0%', '0%'], ['50%', '0%', '-50%', '0%'], ['100%', '0%', '-100%', '0%'],
+            ['0%', '50%', '0%', '-50%'], ['50%', '50%', '-50%', '-50%'], ['100%', '50%', '-100%', '-50%'],
+            ['0%', '100%', '0%', '-100%'], ['50%', '100%', '-50%', '-100%'], ['100%', '100%', '-100%', '-100%']
         ];
         poses.forEach((p, i) => {
             let d = document.createElement('div');
             d.className = 'align-dot';
-            d.dataset.pos = i;
             d.onclick = () => {
                 if(!selectedNode || activeFrame !== 'on') return;
                 const l = state.elements[selectedNode.id].layout;
@@ -574,16 +617,12 @@
             aligner.appendChild(d);
         });
 
-        // Duration scrubbers
         const bindNumScrub = (id, key) => {
             const el = document.getElementById(id);
             let isDragging = false, startY, startVal;
             el.onpointerdown = e => { 
-                isDragging = true; 
-                startY = e.clientY; 
-                startVal = state.global[key]; 
-                el.setPointerCapture(e.pointerId); 
-                e.preventDefault();
+                isDragging = true; startY = e.clientY; startVal = state.global[key]; 
+                el.setPointerCapture(e.pointerId); e.preventDefault();
             };
             window.addEventListener('pointermove', e => { 
                 if(!isDragging) return; 
@@ -595,10 +634,8 @@
             });
             el.onpointerup = () => isDragging = false;
         };
-        bindNumScrub('dur-in', 'inDur');
-        bindNumScrub('dur-out', 'outDur');
+        bindNumScrub('dur-in', 'inDur'); bindNumScrub('dur-out', 'outDur');
 
-        // Ease cycle
         const bindEaseCycle = (id, key, nameId) => {
             const el = document.getElementById(id);
             const nameEl = document.getElementById(nameId);
@@ -625,52 +662,19 @@
         bindEaseCycle('ease-in', 'inEase', 'ease-in-name');
         bindEaseCycle('ease-out', 'outEase', 'ease-out-name');
 
-        // Export
         document.getElementById('ss-export').onclick = () => {
             const exportState = {
-                config: {
-                    inOffset: -100,
-                    outOffset: 100,
-                    inAlpha: 0,
-                    outAlpha: 0,
-                    inDur: state.global.inDur,
-                    outDur: state.global.outDur,
-                    inEase: easings[state.global.inEase].n,
-                    outEase: easings[state.global.outEase].n
-                },
+                config: { inOffset: -100, outOffset: 100, inAlpha: 0, outAlpha: 0,
+                         inDur: state.global.inDur, outDur: state.global.outDur,
+                         inEase: easings[state.global.inEase].n, outEase: easings[state.global.outEase].n },
                 elements: Object.keys(state.elements).map(id => ({
-                    id: id,
-                    in: state.elements[id].in,
-                    on: state.elements[id].on,
-                    out: state.elements[id].out,
-                    layout: state.elements[id].layout
+                    id: id, in: state.elements[id].in, on: state.elements[id].on,
+                    out: state.elements[id].out, layout: state.elements[id].layout
                 }))
             };
-            const jsonStr = JSON.stringify(exportState, null, 2);
-            navigator.clipboard.writeText(jsonStr);
+            navigator.clipboard.writeText(JSON.stringify(exportState, null, 2));
             alert("JSON copied to clipboard!");
         };
-    }
-
-    function applyLayout(n) {
-        const l = state.elements[n.id].layout;
-        n.style.top = l.y + 'px';
-        n.style.left = (l.baseX || '50%');
-        n.style.transform = `translate(${l.bx || '-50%'}, ${l.by || '-50%'}) translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg))`;
-    }
-
-    function updateRuntimeConfig() {
-        const inEaseName = easings[state.global.inEase].n;
-        window.ScrollStory.loadConfig({
-            config: {
-                inOffset: -100,
-                outOffset: 100,
-                inAlpha: 0,
-                outAlpha: 0,
-                animDuration: state.global.inDur,
-                ease: inEaseName
-            }
-        });
     }
 
     function selectNode(node) {
@@ -686,20 +690,15 @@
         nodes.forEach(node => {
             node.addEventListener('pointerdown', (e) => {
                 if (activeFrame === 'play') return;
-                e.stopPropagation();
-                selectNode(node);
-                isDraggingNode = node;
-                dragStartX = e.clientX;
-                dragStartY = e.clientY;
+                e.stopPropagation(); selectNode(node);
+                isDraggingNode = node; dragStartX = e.clientX; dragStartY = e.clientY;
                 
                 if (activeFrame === 'on') {
                     const l = state.elements[node.id].layout;
-                    dragInitTx = parseFloat(l.baseX) || 0;
-                    dragInitTy = parseFloat(l.baseY) || 0;
+                    dragInitTx = parseFloat(l.baseX) || 0; dragInitTy = parseFloat(l.baseY) || 0;
                 } else {
                     const d = state.elements[node.id][activeFrame];
-                    dragInitTx = d.tx;
-                    dragInitTy = d.ty;
+                    dragInitTx = d.tx; dragInitTy = d.ty;
                 }
                 try { node.setPointerCapture(e.pointerId); } catch(err){}
                 e.preventDefault();
@@ -707,48 +706,45 @@
 
             node.addEventListener('wheel', (e) => {
                 if (activeFrame === 'play' || activeFrame === 'on') return;
-                e.preventDefault();
-                selectNode(node);
+                e.preventDefault(); selectNode(node);
                 const d = state.elements[node.id][activeFrame];
-                if (e.altKey) {
-                    d.a = Math.max(0, Math.min(1, d.a - e.deltaY * 0.002));
-                } else if (e.shiftKey) {
-                    d.r += e.deltaY * 0.1;
-                } else {
-                    d.s = Math.max(0.1, d.s - e.deltaY * 0.002);
-                }
+                if (e.altKey) d.a = Math.max(0, Math.min(1, d.a - e.deltaY * 0.002));
+                else if (e.shiftKey) d.r += e.deltaY * 0.1;
+                else d.s = Math.max(0.1, d.s - e.deltaY * 0.002);
                 applyDelta(node, d);
             }, { passive: false });
         });
 
         window.addEventListener('pointermove', (e) => {
             if (!isDraggingNode) return;
-            const dx = e.clientX - dragStartX;
-            const dy = e.clientY - dragStartY;
-            
+            const dx = e.clientX - dragStartX; const dy = e.clientY - dragStartY;
             if (activeFrame === 'on') {
                 const l = state.elements[isDraggingNode.id].layout;
-                l.baseX = dragInitTx + dx;
-                l.baseY = dragInitTy + dy;
+                l.baseX = dragInitTx + dx; l.baseY = dragInitTy + dy;
                 applyLayout(isDraggingNode);
             } else {
                 const d = state.elements[isDraggingNode.id][activeFrame];
-                d.tx = dragInitTx + dx;
-                d.ty = dragInitTy + dy;
+                d.tx = dragInitTx + dx; d.ty = dragInitTy + dy;
                 applyDelta(isDraggingNode, d);
             }
             e.preventDefault();
         });
 
-        window.addEventListener('pointerup', (e) => {
+        window.addEventListener('pointerup', () => {
             if (isDraggingNode) {
-                try { isDraggingNode.releasePointerCapture(e.pointerId); } catch(err){}
+                try { isDraggingNode.releasePointerCapture(); } catch(err){}
                 isDraggingNode = null;
             }
         });
     }
 
-    // Initialize
+    function updateRuntimeConfig() {
+        window.ScrollStory.loadConfig({
+            config: { inOffset: -100, outOffset: 100, inAlpha: 0, outAlpha: 0,
+                     animDuration: state.global.inDur, ease: easings[state.global.inEase].n }
+        });
+    }
+
     init();
 })();
 </script>
