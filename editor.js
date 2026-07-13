@@ -1,6 +1,6 @@
 /**
  * ScrollStory Editor v0.1 - Tiny visual editor (<10KB)
- * Combined with runtime, total should stay under 10KB
+ * Constrained to keep it simple and stay under 10KB
  */
 (function() {
     'use strict';

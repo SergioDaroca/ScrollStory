@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ScrollStory</title>
+<style>
+  :root { --bg: #0a0a0a; --accent: #10b981; --text: #eee; --ui-line: rgba(255,255,255,0.4); }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; overflow-x: hidden; height: 400vh; }
+  
+  /* 0. Brand & Direction */
+  #ss-brand { position: fixed; top: 15px; left: 50%; transform: translateX(-50%); font-weight: 800; letter-spacing: 1px; z-index: 10000; font-size: 14px; pointer-events: none; }
+  #ss-brand span:nth-child(2) { color: var(--accent); }
+  #ss-dir { position: fixed; top: 15px; left: 15px; background: transparent; border: 1px solid var(--ui-line); padding: 4px 10px; border-radius: 4px; z-index: 10000; cursor: pointer; font-size: 12px; font-weight: bold; }
+
+  /* 1. Left Navigator */
+  #ss-nav { position: fixed; left: 0; top: 60px; bottom: 60px; width: 30px; z-index: 10000; cursor: pointer; overflow-y: auto; scrollbar-width: none; }
+  #ss-nav::-webkit-scrollbar { display: none; }
+  #ss-nav::before { content: ''; position: absolute; left: 15px; top: 0; bottom: 0; width: 2px; background: rgba(255,255,255,0.15); }
+  .nav-dot { position: absolute; left: 11px; width: 10px; height: 10px; background: #eee; border-radius: 50%; cursor: pointer; pointer-events: auto; transition: 0.2s; }
+  .nav-dot.active { background: var(--accent); box-shadow: 0 0 10px var(--accent); z-index: 2; transform: scale(1.2); }
+  
+  /* Scrubber is visual only, does not block clicks */
+  #ss-scrubber { position: absolute; left: 13px; width: 6px; background: rgba(255,255,255,0.4); border-radius: 3px; pointer-events: none; }
+
+  /* 2. Timeline */
+  #ss-timeline { 
+    position: fixed; bottom: 40px; left: 25vw; width: 50vw; 
+    display: flex; align-items: center; justify-content: space-between; z-index: 10000; 
+  }
+  #ss-timeline::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: var(--ui-line); z-index: -1; transform: translateY(-50%); }
+  
+  .tl-node { display: flex; flex-direction: column; align-items: center; cursor: pointer; background: var(--bg); padding: 0 15px; }
+  .tl-dot { width: 14px; height: 14px; border-radius: 50%; background: #eee; transition: 0.2s; border: 2px solid var(--bg); }
+  .tl-label { font-size: 12px; text-transform: uppercase; margin-top: 8px; font-weight: 700; color: rgba(255,255,255,0.6); letter-spacing: 1px; }
+  .tl-node.active .tl-dot { background: var(--accent); box-shadow: 0 0 12px var(--accent); border-color: #fff; }
+  .tl-node.active .tl-label { color: #fff; }
+  
+  .tl-segment { position: relative; flex: 1; display: flex; justify-content: center; height: 60px; }
+  .ease-icon { position: absolute; top: -5px; width: 22px; height: 22px; cursor: pointer; fill: none; stroke: #eee; stroke-width: 2; background: var(--bg); padding: 0 8px; }
+  .tl-num { position: absolute; bottom: 0; font-size: 11px; font-weight: bold; cursor: ns-resize; background: var(--bg); padding: 2px 8px; color: #eee; user-select: none; }
+
+  /* 3. 9-Dots Aligner */
+  #ss-aligner { position: fixed; top: 15px; right: 15px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: transparent; z-index: 10000; }
+  .align-dot { width: 8px; height: 8px; background: var(--ui-line); border-radius: 1px; cursor: pointer; }
+  .align-dot:hover { background: var(--accent); }
+
+  /* 4. Controls */
+  #ss-controls { position: fixed; bottom: 20px; right: 15px; display: flex; gap: 8px; z-index: 10000; }
+  #ss-controls button { background: transparent; border: 1px solid var(--ui-line); color: #eee; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; text-transform: uppercase; }
+  #ss-controls button.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: bold; }
+
+  /* 5. Elements */
+  .story-container { position: relative; width: 100%; height: 100%; }
+  
+  [data-story] {
+    position: absolute;
+    top: calc(var(--trigger-y, 0px) + var(--base-y, 50vh) + var(--by, -50%));
+    left: calc(var(--base-x, 50vw) + var(--bx, -50%));
+    transform: translate(calc(var(--tx, 0)*1vw), calc(var(--ty, 0)*1vh)) scale(var(--s, 1)) rotate(var(--r, 0deg));
+    opacity: var(--a, 1);
+    will-change: transform, opacity;
+    width: clamp(150px, 20vw, 300px); aspect-ratio: 4/3;
+    border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 24px;
+  }
+
+  #block1 { margin-top: 50vh; background: #f43f5e; }
+  #block2 { margin-top: 150vh; background: #10b981; }
+  #block3 { margin-top: 250vh; background: #3b82f6; }
+
+  body[data-editing="true"] [data-story] { cursor: grab; box-shadow: 0 0 0 1px rgba(255,255,255,0.25); }
+  body[data-editing="true"] [data-story].selected { box-shadow: 0 0 0 4px var(--accent); z-index: 50; }
+</style>
+</head>
+<body data-editing="true">
+
+<div id="ss-brand"><span>Scroll</span><span>Story</span></div>
+<div id="ss-nav"><div id="ss-scrubber"></div></div>
+
+<div id="ss-timeline">
+  <div class="tl-node" data-frame="in"><div class="tl-dot"></div><div class="tl-label">In</div></div>
+  <div class="tl-segment"><svg class="ease-icon" id="ease-in" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg><div class="tl-num" id="dur-in">1.0v</div></div>
+  <div class="tl-node active" data-frame="on"><div class="tl-dot"></div><div class="tl-label">On</div></div>
+  <div class="tl-segment"><svg class="ease-icon" id="ease-out" viewBox="0 0 24 24"><path d="M3 20 L21 4"/></svg><div class="tl-num" id="dur-out">1.0v</div></div>
+  <div class="tl-node" data-frame="out"><div class="tl-dot"></div><div class="tl-label">Out</div></div>
+</div>
+
+<div id="ss-aligner"></div>
+<div id="ss-controls">
+  <button id="ss-play">Play</button>
+  <button id="ss-export">Export</button>
+</div>
+
+<div class="story-container">
+  <div data-story id="block1">A</div>
+  <div data-story id="block2">B</div>
+  <div data-story id="block3">C</div>
+</div>
+
+<script>
+class ScrollStory {
+  constructor() {
+    this.nodes = Array.from(document.querySelectorAll('[data-story]'));
+    this.state = { global: { inDur: 1.0, outDur: 1.0, inEase: 0, outEase: 0 }, elements: {} };
+    this.easings = [
+      { n: 'Linear', f: t => t, p: 'M3 20 L21 4' },
+      { n: 'EaseOut', f: t => 1 - Math.pow(1 - t, 3), p: 'M3 20 Q 10 4 21 4' },
+      { n: 'EaseIn', f: t => t * t * t, p: 'M3 20 Q 14 20 21 4' },
+      { n: 'Spring', f: t => 1+(Math.pow(2,-10*t)*Math.sin((t-0.075)*(2*Math.PI)/0.3)), p: 'M3 20 Q 10 4 15 -2 T 21 4' }
+    ];
+    this.activeFrame = 'on'; 
+    this.selectedNode = null;
+    this.scrollT = 0;
+    this.targetScrollT = 0;
+    this.initElements();
+    this.buildUI();
+    this.bindTactileControls();
+    window.addEventListener('scroll', () => { this.targetScrollT = window.scrollY; }, {passive: true});
+    requestAnimationFrame(() => this.tick());
+  }
+
+  initElements() {
+    this.nodes.forEach(n => {
+      if (!n.id) n.id = 'ss-' + Math.random().toString(36).substr(2, 6);
+      const triggerY = n.offsetTop;
+      n.style.setProperty('--trigger-y', `${triggerY}px`);
+      this.state.elements[n.id] = {
+        in:  { tx: 0, ty: 0, s: 1, a: 1, r: 0 },
+        out: { tx: 0, ty: 0, s: 1, a: 1, r: 0 },
+        layout: { y: triggerY, baseX: '50vw', baseY: '50vh', bx: '-50%', by: '-50%' }
+      };
+      this.applyLayout(n);
+    });
+    this.updateNavigator();
+  }
+
+  tick() {
+    if (this.activeFrame === 'play') {
+      this.scrollT += (this.targetScrollT - this.scrollT) * 0.1;
+      this.updateNavigatorScrubber();
+      const vh = window.innerHeight;
+      const inPx = this.state.global.inDur * vh;
+      const outPx = this.state.global.outDur * vh;
+      const holdPx = vh * 0.5;
+      this.nodes.forEach(node => {
+        const d = this.state.elements[node.id];
+        const startScroll = d.layout.y - vh;
+        const localT = this.scrollT - startScroll;
+        if (localT < 0) this.applyDelta(node, d.in);
+        else if (localT < inPx) {
+          const easeF = this.easings[this.state.global.inEase].f;
+          this.interpolate(node, d.in, this.getZeroDelta(), easeF(localT / inPx));
+        } else if (localT < inPx + holdPx) this.applyDelta(node, this.getZeroDelta());
+        else if (localT < inPx + holdPx + outPx) {
+          const easeF = this.easings[this.state.global.outEase].f;
+          this.interpolate(node, this.getZeroDelta(), d.out, easeF((localT - inPx - holdPx) / outPx));
+        } else this.applyDelta(node, d.out);
+      });
+    }
+    requestAnimationFrame(() => this.tick());
+  }
+
+  getZeroDelta() { return { tx: 0, ty: 0, s: 1, a: 1, r: 0 }; }
+  lerp(s, e, t) { return s * (1 - t) + e * t; }
+  interpolate(n, s, e, t) {
+    n.style.setProperty('--tx', this.lerp(s.tx, e.tx, t)); n.style.setProperty('--ty', this.lerp(s.ty, e.ty, t));
+    n.style.setProperty('--s', this.lerp(s.s, e.s, t));     n.style.setProperty('--a', this.lerp(s.a, e.a, t));
+    n.style.setProperty('--r', this.lerp(s.r, e.r, t));
+  }
+  applyDelta(n, d) {
+    n.style.setProperty('--tx', d.tx); n.style.setProperty('--ty', d.ty);
+    n.style.setProperty('--s', d.s);   n.style.setProperty('--a', d.a); n.style.setProperty('--r', d.r);
+  }
+  applyLayout(n) {
+    const l = this.state.elements[n.id].layout;
+    n.style.setProperty('--base-x', l.baseX); n.style.setProperty('--base-y', l.baseY);
+    n.style.setProperty('--bx', l.bx);        n.style.setProperty('--by', l.by);
+  }
+
+  setMode(mode) {
+    this.activeFrame = mode;
+    document.body.setAttribute('data-editing', mode !== 'play');
+    document.querySelectorAll('.tl-node').forEach(n => n.classList.toggle('active', n.dataset.frame === mode));
+    const playBtn = document.getElementById('ss-play');
+    playBtn.classList.toggle('active', mode === 'play');
+    playBtn.innerText = mode === 'play' ? 'Stop' : 'Play';
+    if (mode !== 'play') {
+      this.nodes.forEach(node => {
+        if (mode === 'on') this.applyDelta(node, this.getZeroDelta());
+        else this.applyDelta(node, this.state.elements[node.id][mode]);
+      });
+    }
+  }
+
+  buildUI() {
+    document.querySelectorAll('.tl-node').forEach(node => {
+      node.onclick = () => this.setMode(node.dataset.frame);
+    });
+    document.getElementById('ss-play').onclick = () => this.setMode(this.activeFrame === 'play' ? 'on' : 'play');
+    
+    // Aligner Dots
+    const aligner = document.getElementById('ss-aligner');
+    const poses = [
+      ['0vw','0vh','0%','0%'], ['50vw','0vh','-50%','0%'], ['100vw','0vh','-100%','0%'],
+      ['0vw','50vh','0%','-50%'],['50vw','50vh','-50%','-50%'],['100vw','50vh','-100%','-50%'],
+      ['0vw','100vh','0%','-100%'],['50vw','100vh','-50%','-100%'],['100vw','100vh','-100%','-100%']
+    ];
+    poses.forEach(p => {
+      let d = document.createElement('div'); d.className = 'align-dot';
+      d.onclick = () => {
+        if(!this.selectedNode || this.activeFrame !== 'on') return;
+        const l = this.state.elements[this.selectedNode.id].layout;
+        [l.baseX, l.baseY, l.bx, l.by] = p;
+        this.applyLayout(this.selectedNode);
+      };
+      aligner.appendChild(d);
+    });
+
+    const bindNumScrub = (id, key) => {
+      const el = document.getElementById(id);
+      let isDragging = false, startY, startVal;
+      el.onpointerdown = e => { isDragging = true; startY = e.clientY; startVal = this.state.global[key]; el.setPointerCapture(e.pointerId); };
+      el.onpointermove = e => { if(!isDragging) return; let val = Math.max(0.1, (startVal + (startY - e.clientY) * 0.02)); if (isNaN(val)) val = 1.0; this.state.global[key] = parseFloat(val.toFixed(1)); el.innerText = this.state.global[key] + 'v'; };
+      el.onpointerup = () => isDragging = false;
+    };
+    bindNumScrub('dur-in', 'inDur'); bindNumScrub('dur-out', 'outDur');
+
+    const bindEaseCycle = (id, key) => {
+      const el = document.getElementById(id);
+      el.onwheel = e => { e.preventDefault(); let idx = this.state.global[key] + (e.deltaY > 0 ? 1 : -1); if (idx < 0) idx = this.easings.length - 1; if (idx >= this.easings.length) idx = 0; this.state.global[key] = idx; el.innerHTML = `<path d="${this.easings[idx].p}"/>`; };
+    };
+    bindEaseCycle('ease-in', 'inEase'); bindEaseCycle('ease-out', 'outEase');
+
+    document.getElementById('ss-export').onclick = () => { navigator.clipboard.writeText(JSON.stringify(this.state, null, 2)); alert("Copied!"); };
+    this.bindScrubberUI();
+  }
+
+  bindScrubberUI() {
+    const nav = document.getElementById('ss-nav');
+    nav.onpointerdown = (e) => {
+      // Only trigger if we aren't clicking on a dot
+      if (e.target.classList.contains('nav-dot')) return;
+      const rect = nav.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+      window.scrollTo(0, pct * (document.body.scrollHeight - window.innerHeight));
+    };
+  }
+
+  updateNavigator() {
+    const nav = document.getElementById('ss-nav');
+    nav.querySelectorAll('.nav-dot').forEach(d => d.remove());
+    const docH = document.body.scrollHeight;
+    this.nodes.forEach(n => {
+      let dot = document.createElement('div');
+      dot.className = 'nav-dot'; dot.dataset.id = n.id;
+      dot.style.top = `${(this.state.elements[n.id].layout.y / docH) * 100}%`;
+      dot.onclick = (e) => { e.stopPropagation(); this.selectNode(n); };
+      nav.appendChild(dot);
+    });
+  }
+
+  updateNavigatorScrubber() {
+    const scrub = document.getElementById('ss-scrubber');
+    const docH = document.body.scrollHeight, winH = window.innerHeight;
+    const pct = (this.scrollT / (docH - winH)) * 100;
+    scrub.style.top = `${pct}%`;
+    scrub.style.height = `${(winH / docH) * 100}%`;
+  }
+
+  selectNode(node) {
+    if(this.selectedNode) this.selectedNode.classList.remove('selected');
+    this.selectedNode = node;
+    node.classList.add('selected');
+    document.querySelectorAll('.nav-dot').forEach(d => d.classList.toggle('active', d.dataset.id === node.id));
+  }
+
+  bindTactileControls() {
+    let activeDragNode = null;
+    let startX, startY, initTx, initTy;
+
+    this.nodes.forEach(node => {
+      node.addEventListener('pointerdown', (e) => {
+        if (this.activeFrame === 'play') return;
+        e.stopPropagation();
+        this.selectNode(node);
+        activeDragNode = node;
+        startX = e.clientX; startY = e.clientY;
+        if (this.activeFrame === 'on') {
+          const l = this.state.elements[node.id].layout;
+          initTx = parseFloat(l.baseX); initTy = parseFloat(l.baseY);
+        } else {
+          const d = this.state.elements[node.id][this.activeFrame];
+          initTx = d.tx; initTy = d.ty;
+        }
+        try { node.setPointerCapture(e.pointerId); } catch(err){}
+      });
+
+      node.addEventListener('wheel', (e) => {
+        if (this.activeFrame === 'play' || this.activeFrame === 'on') return;
+        e.preventDefault();
+        this.selectNode(node);
+        const d = this.state.elements[node.id][this.activeFrame];
+        if (e.altKey) d.a = Math.max(0, Math.min(1, d.a - e.deltaY * 0.002));
+        else if (e.shiftKey) d.r += e.deltaY * 0.1;
+        else d.s = Math.max(0.1, d.s - e.deltaY * 0.002);
+        this.applyDelta(node, d);
+      }, { passive: false });
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!activeDragNode) return;
+      const vwMove = ((e.clientX - startX) / window.innerWidth) * 100;
+      const vhMove = ((e.clientY - startY) / window.innerHeight) * 100;
+      if (this.activeFrame === 'on') {
+        const l = this.state.elements[activeDragNode.id].layout;
+        l.baseX = `${initTx + vwMove}vw`; l.baseY = `${initTy + vhMove}vh`;
+        this.applyLayout(activeDragNode);
+      } else {
+        const d = this.state.elements[activeDragNode.id][this.activeFrame];
+        d.tx = initTx + vwMove; d.ty = initTy + vhMove;
+        this.applyDelta(activeDragNode, d);
+      }
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      if (activeDragNode) {
+        try { activeDragNode.releasePointerCapture(e.pointerId); } catch(err){}
+        activeDragNode = null;
+      }
+    });
+  }
+}
+new ScrollStory();
+</script>
+</body>
+</html>

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NanoAnimator</title>
+<style>
+  /* Base structural styles */
+  body { font-family: system-ui; background: #111; color: #eee; margin: 0; padding: 0; overflow-x: hidden; }
+
+  /* The target container */
+  article {
+    position: relative; width: 100vw; height: 300vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+
+  /* Animatable Elements rely on CSS variables driven by JS */
+  .anim-node {
+    position: absolute;
+    width: 200px; height: 200px; background: #3b82f6; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-weight: bold;
+    /* The Engine pipes values into these variables */
+    transform: translate(var(--tx, 0px), var(--ty, 0px)) scale(var(--s, 1)) rotate(var(--r, 0deg));
+    opacity: var(--a, 1);
+    z-index: var(--z, 1);
+    background-color: var(--c, #3b82f6);
+    cursor: grab;
+    will-change: transform, opacity;
+  }
+
+  .anim-node:active { cursor: grabbing; }
+
+  /* Minimal Editor UI */
+  #nano-ui {
+    position: fixed; top: 10px; left: 10px; background: rgba(0,0,0,0.8); border: 1px solid #333;
+    padding: 15px; border-radius: 8px; z-index: 9999; display: flex; flex-direction: column; gap: 10px;
+    backdrop-filter: blur(5px);
+  }
+  button, select { background: #222; color: #fff; border: 1px solid #444; padding: 5px 10px; cursor: pointer;}
+  button:hover { background: #444; }
+</style>
+</head>
+<body>
+
+<div id="nano-ui">
+  <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color:#888;">Nano Editor</div>
+  <div>
+    <label>Mode: </label>
+    <select id="ui-mode"><option value="scroll">Scroll</option><option value="time">Time</option></select>
+  </div>
+  <div>
+    <label>Editing Frame: </label>
+    <select id="ui-frame"><option value="entrance">Entrance</option><option value="stage" selected>Stage</option><option value="exit">Exit</option></select>
+  </div>
+  <button id="ui-play">Play Animation</button>
+  <button id="ui-export">Export JSON</button>
+</div>
+
+<article id="scene">
+  <div class="anim-node" id="box1" style="top: 50vh;">Box 1</div>
+  <div class="anim-node" id="box2" style="top: 150vh; background: #ef4444;">Box 2</div>
+</article>
+
+<script>
+/**
+ * NanoAnimator: A decoupled playback engine and editor state machine.
+ */
+class NanoAnimator {
+  constructor(selector) {
+    this.container = document.querySelector(selector);
+    this.nodes = Array.from(this.container.querySelectorAll('.anim-node'));
+
+    // Core state structure
+    this.state = {
+      mode: 'scroll', // 'scroll' | 'time'
+      duration: 2000, // ms for time mode
+      elements: {}
+    };
+
+    // Editor state
+    this.activeFrame = 'stage'; // 'entrance' | 'stage' | 'exit'
+    this.isPlaying = false;
+    this.playStartTime = 0;
+    this.draggedNode = null;
+
+    this.initElements();
+    this.bindEditorUI();
+    this.bindDragDrop();
+
+    // Start engine loop
+    requestAnimationFrame((t) => this.tick(t));
+  }
+
+  // Initialize default 3-frame state for all targeted nodes
+  initElements() {
+    this.nodes.forEach(node => {
+      const id = node.id;
+      this.state.elements[id] = {
+        entrance: { tx: 0, ty: 200, s: 0.5, a: .5, r: -15, ease: 'easeOutQuart' },
+        stage:    { tx: 0, ty: 0,   s: 1.0, a: 1, r: 0,   ease: 'linear' },
+        exit:     { tx: 0, ty: -200,s: 0.5, a: .5, r: 15,  ease: 'easeInQuart' }
+      };
+      this.applyFrame(node, 'stage'); // Set to default pose
+    });
+  }
+
+  // Math & Interpolation functions
+  lerp(start, end, t) {
+    return start * (1 - t) + end * t;
+  }
+
+  // Basic easings
+  ease(t, type) {
+    switch(type) {
+      case 'easeOutQuart': return 1 - Math.pow(1 - t, 4);
+      case 'easeInQuart': return t * t * t * t;
+      default: return t; // linear
+    }
+  }
+
+  // --- PLAYBACK ENGINE ---
+
+  tick(timestamp) {
+    if (this.isPlaying) {
+      this.updatePlayback(timestamp);
+    } else {
+      this.updateEditorView();
+    }
+    requestAnimationFrame((t) => this.tick(t));
+  }
+
+  updatePlayback(timestamp) {
+    if (this.state.mode === 'time') {
+      let t = (timestamp - this.playStartTime) / this.state.duration;
+      if (t > 1) { this.isPlaying = false; t = 1; } // End playback
+      this.renderPlayhead(t);
+    } else if (this.state.mode === 'scroll') {
+      // Normalize scroll to 0.0 -> 1.0 based on container height
+      const rect = this.container.getBoundingClientRect();
+      const scrollHeight = rect.height - window.innerHeight;
+      let t = Math.max(0, Math.min(1, -rect.top / scrollHeight));
+      this.renderPlayhead(t);
+    }
+  }
+
+  updateEditorView() {
+    // In edit mode, lock elements to the currently selected frame
+    this.nodes.forEach(node => this.applyFrame(node, this.activeFrame));
+  }
+
+  renderPlayhead(t) {
+    // Map overall t (0-1) to the 3-state system.
+    // 0.0->0.5 = entrance to stage. 0.5->1.0 = stage to exit.
+    let phaseT, startFrame, endFrame;
+
+    if (t < 0.5) {
+      phaseT = t * 2; // Normalize to 0-1
+      startFrame = 'entrance';
+      endFrame = 'stage';
+    } else {
+      phaseT = (t - 0.5) * 2; // Normalize to 0-1
+      startFrame = 'stage';
+      endFrame = 'exit';
+    }
+
+    this.nodes.forEach(node => {
+      const data = this.state.elements[node.id];
+      const start = data[startFrame];
+      const end = data[endFrame];
+
+      // Apply easing equation of the destination frame
+      const easedT = this.ease(phaseT, end.ease);
+
+      // Pipe interpolated values directly to CSS variables
+      node.style.setProperty('--tx', `${this.lerp(start.tx, end.tx, easedT)}px`);
+      node.style.setProperty('--ty', `${this.lerp(start.ty, end.ty, easedT)}px`);
+      node.style.setProperty('--s', this.lerp(start.s, end.s, easedT));
+      node.style.setProperty('--a', this.lerp(start.a, end.a, easedT));
+      node.style.setProperty('--r', `${this.lerp(start.r, end.r, easedT)}deg`);
+    });
+  }
+
+  applyFrame(node, frameName) {
+    const data = this.state.elements[node.id][frameName];
+    node.style.setProperty('--tx', `${data.tx}px`);
+    node.style.setProperty('--ty', `${data.ty}px`);
+    node.style.setProperty('--s', data.s);
+    node.style.setProperty('--a', data.a);
+    node.style.setProperty('--r', `${data.r}deg`);
+  }
+
+  // --- EDITOR TRAITS (Drag & Drop) ---
+
+  bindDragDrop() {
+    let startX, startY, initTx, initTy;
+
+    window.addEventListener('pointerdown', (e) => {
+      if (this.isPlaying || !e.target.classList.contains('anim-node')) return;
+      this.draggedNode = e.target;
+      const data = this.state.elements[this.draggedNode.id][this.activeFrame];
+      startX = e.clientX;
+      startY = e.clientY;
+      initTx = data.tx;
+      initTy = data.ty;
+      this.draggedNode.setPointerCapture(e.pointerId);
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!this.draggedNode) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      // Write directly to state
+      const data = this.state.elements[this.draggedNode.id][this.activeFrame];
+      data.tx = initTx + dx;
+      data.ty = initTy + dy;
+    });
+
+    window.addEventListener('pointerup', (e) => {
+      if (this.draggedNode) {
+        this.draggedNode.releasePointerCapture(e.pointerId);
+        this.draggedNode = null;
+      }
+    });
+
+    // Bonus: Mouse wheel to adjust scale/rotation when hovering a node in edit mode
+    window.addEventListener('wheel', (e) => {
+      if (this.isPlaying || !e.target.classList.contains('anim-node')) return;
+      e.preventDefault();
+      const data = this.state.elements[e.target.id][this.activeFrame];
+      if (e.shiftKey) {
+        data.r += e.deltaY * 0.1; // Shift+Wheel = Rotate
+      } else {
+        data.s = Math.max(0.1, data.s - e.deltaY * 0.001); // Wheel = Scale
+      }
+    }, { passive: false });
+  }
+
+  // --- UI BINDINGS ---
+
+  bindEditorUI() {
+    document.getElementById('ui-mode').addEventListener('change', (e) => {
+      this.state.mode = e.target.value;
+    });
+
+    document.getElementById('ui-frame').addEventListener('change', (e) => {
+      this.activeFrame = e.target.value;
+      this.isPlaying = false;
+    });
+
+    document.getElementById('ui-play').addEventListener('click', () => {
+      this.isPlaying = !this.isPlaying;
+      if (this.isPlaying && this.state.mode === 'time') {
+        this.playStartTime = performance.now();
+      }
+      document.getElementById('ui-play').innerText = this.isPlaying ? 'Stop' : 'Play Animation';
+    });
+
+    document.getElementById('ui-export').addEventListener('click', () => {
+      const jsonStr = JSON.stringify(this.state, null, 2);
+      console.log(jsonStr);
+      // Create a dummy link to trigger download
+      const blob = new Blob([jsonStr], {type: "application/json"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'animation-config.json';
+      a.click();
+    });
+  }
+}
+
+// Initialize on the <article>
+const animator = new NanoAnimator('#scene');
+</script>
+</body>
+</html>

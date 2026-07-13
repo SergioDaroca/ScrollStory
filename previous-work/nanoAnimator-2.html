@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NanoAnimator Pro</title>
+<style>
+  body { font-family: system-ui; background: #0a0a0a; color: #eee; margin: 0; padding: 0; overflow-x: hidden; }
+
+  article {
+    position: relative; width: 100vw; height: 350vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+
+  /* The Engine handles the math, CSS handles the hardware acceleration */
+  [data-nano] {
+    position: absolute;
+    width: clamp(100px, 15vw, 200px); aspect-ratio: 1; /* Responsive base size */
+    background: #3b82f6; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-weight: bold;
+
+    /* Using calc() to apply responsive viewport units injected by JS */
+    transform: translate(calc(var(--tx, 0) * 1vw), calc(var(--ty, 0) * 1vh))
+               scale(var(--s, 1)) rotate(var(--r, 0deg));
+    opacity: var(--a, 1);
+    will-change: transform, opacity;
+  }
+
+  /* Editor specific styles */
+    body[data-editing="true"] [data-nano] {
+      cursor: grab;
+      /* Force a minimum opacity of 0.2 so elements never vanish while editing */
+      opacity: max(0.2, var(--a, 1)) !important;
+      /* Add a faint permanent wireframe so you know where invisible bounds are */
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
+      transition: box-shadow 0.2s;
+    }
+
+    body[data-editing="true"] [data-nano]:active {
+      cursor: grabbing;
+    }
+
+    body[data-editing="true"] [data-nano].selected {
+      box-shadow: 0 0 0 4px #10b981;
+      z-index: 10;
+      /* Make selected ghost elements slightly more visible */
+      opacity: max(0.4, var(--a, 1)) !important;
+    }
+
+  #nano-ui {
+    position: fixed; top: 15px; left: 15px; background: rgba(15,15,15,0.9); border: 1px solid #333;
+    padding: 15px; border-radius: 8px; z-index: 9999; display: flex; flex-direction: column; gap: 12px;
+    backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .ui-row { display: flex; justify-content: space-between; gap: 15px; align-items: center; font-size: 13px;}
+  button, select { background: #222; color: #fff; border: 1px solid #444; padding: 6px 12px; border-radius: 4px; cursor: pointer;}
+  button:hover, select:hover { background: #333; }
+  .hints { font-size: 11px; color: #888; max-width: 200px; line-height: 1.4; border-top: 1px solid #333; padding-top: 10px;}
+  kbd { background: #333; padding: 2px 4px; border-radius: 3px; color: #ccc;}
+</style>
+</head>
+<body data-editing="true">
+
+<div id="nano-ui">
+  <div style="font-weight: 800; letter-spacing: 1px; color:#fff;">NANO<span style="color:#10b981">PRO</span></div>
+  <div class="ui-row"><label>Engine</label><select id="ui-mode"><option value="scroll">Scroll</option><option value="time">Time (2s)</option></select></div>
+  <div class="ui-row"><label>Frame</label><select id="ui-frame"><option value="entrance">Entrance</option><option value="stage" selected>Stage</option><option value="exit">Exit</option></select></div>
+  <div class="ui-row"><label>Easing</label><select id="ui-ease"><option value="linear">Linear</option><option value="easeOut">Ease Out</option><option value="easeIn">Ease In</option><option value="spring">Spring</option></select></div>
+  <div class="ui-row"><button id="ui-play" style="flex:1; background:#10b981; color:#000; font-weight:bold;">Test Playback</button></div>
+  <div class="ui-row"><button id="ui-export" style="flex:1;">Export JSON</button></div>
+  <div class="hints">
+    <b>Shortcuts on selected node:</b><br>
+    Drag = Move (Responsive)<br>
+    Scroll = Scale<br>
+    <kbd>Shift</kbd>+Scroll = Rotate<br>
+    <kbd>Alt</kbd>+Scroll = Opacity
+  </div>
+</div>
+
+<article id="scene">
+  <div data-nano id="hero-block" style="top: 20vh; background: linear-gradient(45deg, #f43f5e, #8b5cf6);">Block A</div>
+  <div data-nano id="data-block" style="top: 100vh; background: linear-gradient(45deg, #10b981, #3b82f6);">Block B</div>
+</article>
+
+<script>
+class NanoAnimator {
+  constructor() {
+    // Auto-discover nodes
+    this.nodes = Array.from(document.querySelectorAll('[data-nano]'));
+
+    this.state = { mode: 'scroll', duration: 2000, elements: {} };
+    this.activeFrame = 'stage';
+    this.isPlaying = false;
+    this.selectedNode = this.nodes[0];
+
+    // Inertia playhead tracking
+    this.playStartTime = 0;
+    this.targetT = 0;
+    this.currentT = 0;
+
+    this.initElements();
+    this.bindEditorUI();
+    this.bindTactileControls();
+
+    requestAnimationFrame((t) => this.tick(t));
+  }
+
+  initElements() {
+    this.nodes.forEach(node => {
+      // Ensure IDs exist for JSON mapping
+      if (!node.id) node.id = 'nano-' + Math.random().toString(36).substr(2, 9);
+
+      // Default configurations using responsive vw/vh units
+      this.state.elements[node.id] = {
+        entrance: { tx: 0, ty: 30, s: 0.8, a: 0, r: -5, ease: 'easeOut' },
+        stage:    { tx: 0, ty: 0,  s: 1.0, a: 1, r: 0,  ease: 'linear' },
+        exit:     { tx: 0, ty: -30,s: 0.8, a: 0, r: 5,  ease: 'easeIn' }
+      };
+      this.applyFrame(node, 'stage');
+    });
+    this.selectNode(this.nodes[0]);
+  }
+
+  // Math & Advanced Easings
+  lerp(s, e, t) { return s * (1 - t) + e * t; }
+
+  ease(t, type) {
+    switch(type) {
+      case 'easeOut': return 1 - Math.pow(1 - t, 3);
+      case 'easeIn': return t * t * t;
+      case 'spring': return 1 + (Math.pow(2, -10 * t) * Math.sin((t - 0.075) * (2 * Math.PI) / 0.3));
+      default: return t;
+    }
+  }
+
+  // --- ENGINE ---
+
+  tick(timestamp) {
+    if (this.isPlaying) {
+      if (this.state.mode === 'time') {
+        this.targetT = Math.min(1, (timestamp - this.playStartTime) / this.state.duration);
+        this.currentT = this.targetT; // Hard lock for time
+        if (this.currentT >= 1) document.getElementById('ui-play').click(); // Auto-stop
+      } else {
+        // Scroll Math
+        const rect = document.body.getBoundingClientRect();
+        const scrollHeight = rect.height - window.innerHeight;
+        this.targetT = Math.max(0, Math.min(1, -rect.top / scrollHeight));
+        // INERTIA: The secret sauce for premium scrollytelling
+        this.currentT = this.lerp(this.currentT, this.targetT, 0.08);
+      }
+      this.renderPlayhead(this.currentT);
+    } else {
+      this.nodes.forEach(node => this.applyFrame(node, this.activeFrame));
+    }
+    requestAnimationFrame((t) => this.tick(t));
+  }
+
+  renderPlayhead(t) {
+    let phaseT, startFrame, endFrame;
+    if (t < 0.5) { phaseT = t * 2; startFrame = 'entrance'; endFrame = 'stage'; }
+    else { phaseT = (t - 0.5) * 2; startFrame = 'stage'; endFrame = 'exit'; }
+
+    this.nodes.forEach(node => {
+      const data = this.state.elements[node.id];
+      const s = data[startFrame], e = data[endFrame];
+      const easedT = this.ease(phaseT, e.ease);
+
+      node.style.setProperty('--tx', this.lerp(s.tx, e.tx, easedT));
+      node.style.setProperty('--ty', this.lerp(s.ty, e.ty, easedT));
+      node.style.setProperty('--s', this.lerp(s.s, e.s, easedT));
+      node.style.setProperty('--a', this.lerp(s.a, e.a, easedT));
+      node.style.setProperty('--r', `${this.lerp(s.r, e.r, easedT)}deg`);
+    });
+  }
+
+  applyFrame(node, frameName) {
+    const d = this.state.elements[node.id][frameName];
+    node.style.setProperty('--tx', d.tx); node.style.setProperty('--ty', d.ty);
+    node.style.setProperty('--s', d.s);   node.style.setProperty('--a', d.a);
+    node.style.setProperty('--r', `${d.r}deg`);
+  }
+
+  // --- TACTILE EDITOR ---
+
+  selectNode(node) {
+    if(this.selectedNode) this.selectedNode.classList.remove('selected');
+    this.selectedNode = node;
+    if(node) {
+      node.classList.add('selected');
+      // Sync UI easing dropdown
+      document.getElementById('ui-ease').value = this.state.elements[node.id][this.activeFrame].ease;
+    }
+  }
+
+  bindTactileControls() {
+    let startX, startY, initTx, initTy, isDragging = false;
+
+    window.addEventListener('pointerdown', (e) => {
+      if (this.isPlaying || !e.target.hasAttribute('data-nano')) return;
+      this.selectNode(e.target);
+      const d = this.state.elements[this.selectedNode.id][this.activeFrame];
+      startX = e.clientX; startY = e.clientY;
+      initTx = d.tx; initTy = d.ty;
+      isDragging = true;
+      e.target.setPointerCapture(e.pointerId);
+    });
+
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging || !this.selectedNode) return;
+      const dx = e.clientX - startX; const dy = e.clientY - startY;
+
+      // Convert raw pixels to viewport percentage (Responsive Design)
+      const vwMove = (dx / window.innerWidth) * 100;
+      const vhMove = (dy / window.innerHeight) * 100;
+
+      const d = this.state.elements[this.selectedNode.id][this.activeFrame];
+      d.tx = initTx + vwMove; d.ty = initTy + vhMove;
+    });
+
+    window.addEventListener('pointerup', () => isDragging = false);
+
+    // Multi-parameter tactile wheel
+    window.addEventListener('wheel', (e) => {
+      if (this.isPlaying || !this.selectedNode || !this.selectedNode.matches(':hover')) return;
+      e.preventDefault();
+      const d = this.state.elements[this.selectedNode.id][this.activeFrame];
+
+      if (e.altKey) {
+        d.a = Math.max(0, Math.min(1, d.a - e.deltaY * 0.002)); // Alpha
+      } else if (e.shiftKey) {
+        d.r += e.deltaY * 0.1; // Rotate
+      } else {
+        d.s = Math.max(0.1, d.s - e.deltaY * 0.002); // Scale
+      }
+    }, { passive: false });
+  }
+
+  // --- UI ---
+  bindEditorUI() {
+    const sync = (id, key) => document.getElementById(id).addEventListener('change', e => this[key] = e.target.value);
+    sync('ui-mode', 'state.mode');
+
+    document.getElementById('ui-frame').addEventListener('change', e => {
+      this.activeFrame = e.target.value;
+      if(this.selectedNode) document.getElementById('ui-ease').value = this.state.elements[this.selectedNode.id][this.activeFrame].ease;
+    });
+
+    document.getElementById('ui-ease').addEventListener('change', e => {
+      if(this.selectedNode) this.state.elements[this.selectedNode.id][this.activeFrame].ease = e.target.value;
+    });
+
+    document.getElementById('ui-play').addEventListener('click', (e) => {
+      this.isPlaying = !this.isPlaying;
+      document.body.setAttribute('data-editing', !this.isPlaying);
+      if (this.isPlaying && this.state.mode === 'time') {
+        this.playStartTime = performance.now();
+        this.currentT = 0; // reset playhead
+      } else if (this.isPlaying && this.state.mode === 'scroll') {
+        this.currentT = this.targetT; // Prevent initial snap jump
+      }
+      e.target.innerText = this.isPlaying ? 'Stop Playback' : 'Test Playback';
+      e.target.style.background = this.isPlaying ? '#f43f5e' : '#10b981';
+    });
+
+    document.getElementById('ui-export').addEventListener('click', () => {
+      const json = JSON.stringify(this.state, null, 2);
+      console.log(json);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([json], {type: "application/json"}));
+      a.download = 'nano-anim.json'; a.click();
+    });
+  }
+}
+
+new NanoAnimator();
+</script>
+</body>
+</html>
