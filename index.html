@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ScrollStory Test</title>
+    <title>ScrollStory Demo</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -22,11 +22,34 @@
             padding: 40px 0;
             border-bottom: 1px solid #333;
             position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
         }
         h1, h2 { color: #0ff; }
-        p { line-height: 1.6; margin: 20px 0; opacity: 0.9; }
+        p { 
+            max-width: 600px; 
+            line-height: 1.6; 
+            margin: 20px 0; 
+            opacity: 0.9; 
+        }
         .actor {
-            transition: all 0.5s ease;
+            transition: transform 0.5s ease, opacity 0.5s ease;
+        }
+        .actor-box {
+            width: 200px;
+            height: 150px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 24px;
+            margin: 20px 0;
         }
     </style>
 </head>
@@ -34,31 +57,48 @@
     <article id="story">
         <section id="s1">
             <h1>ScrollStory</h1>
+            <p class="actor-box actor" data-actor="hero">Tiny Runtime</p>
             <p class="actor" data-actor="title">A tiny Editor and Runtime for creating Scroll Stories.</p>
         </section>
         
         <section id="s2">
-            <h2 class="actor" data-actor="heading1">The Vision</h2>
-            <p class="actor" data-actor="text1">The simplest scroll-based animation engine. Elements have three states: in, on, and out. As you scroll, elements animate between these states.</p>
+            <h2>The Vision</h2>
+            <p class="actor" data-actor="vision">The simplest scroll-based animation engine.</p>
+            <p class="actor-box actor" data-actor="box1">Box 1</p>
         </section>
         
         <section id="s3">
-            <h2 class="actor" data-actor="heading2">How It Works</h2>
-            <p class="actor" data-actor="text2">Each actor element has a natural "on stage" position defined by its CSS. The "in" state is before this position (faded and offset), and "out" is after (faded and offset the other way).</p>
+            <h2>How It Works</h2>
+            <p class="actor" data-actor="how">Elements have three states: in, on, and out.</p>
+            <p class="actor-box actor" data-actor="box2">Box 2</p>
         </section>
         
         <section id="s4">
-            <h2 class="actor" data-actor="heading3">The Magic</h2>
-            <p class="actor" data-actor="text3">Scroll to see elements animate. The runtime calculates when each element should start its in/out animations based on scroll position.</p>
+            <h2>The Magic</h2>
+            <p class="actor" data-actor="magic">Scroll to see elements animate between states.</p>
+            <p class="actor-box actor" data-actor="box3">Box 3</p>
         </section>
         
         <section id="s5">
-            <h2 class="actor" data-actor="heading4">Get Started</h2>
-            <p class="actor" data-actor="text4">This is just the beginning. The editor will let you visually configure these animations with a simple timeline interface.</p>
+            <h2>Get Started</h2>
+            <p class="actor" data-actor="start">The editor lets you visually configure these animations.</p>
+            <p class="actor-box actor" data-actor="box4">Box 4</p>
         </section>
     </article>
 
-    <script src="runtime.js"></script>
-    <script src="animation.js"></script>
+    <script src="scrollstory.min.js"></script>
+    <script>
+        // Optional: Load custom config
+        window.ScrollStory.loadConfig({
+            config: {
+                inOffset: -100,
+                outOffset: 100,
+                inAlpha: 0,
+                outAlpha: 0,
+                animDuration: 1,
+                ease: 'easeOutQuad'
+            }
+        });
+    </script>
 </body>
 </html>
